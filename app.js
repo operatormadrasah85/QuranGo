@@ -427,14 +427,14 @@ const AudioDB = {
     return this.keysSet.size;
   },
 
-  async getBlob(qari, surahNum, ayahNum) {
+  async getRecord(qari, surahNum, ayahNum) {
     const db = await this.open();
     if (!db) return null;
     const id = this.makeKey(qari, surahNum, ayahNum);
     return new Promise((resolve) => {
       const tx = db.transaction(this.storeName, 'readonly');
       const req = tx.objectStore(this.storeName).get(id);
-      req.onsuccess = () => resolve(req.result ? req.result.blob : null);
+      req.onsuccess = () => resolve(req.result || null);
       req.onerror = () => resolve(null);
     });
   },
@@ -460,7 +460,32 @@ const AudioDB = {
     });
   },
 
+  async putOpaqueMarker(qari, surahNum, ayahNum, opaqueUrl) {
+    const db = await this.open();
+    if (!db) return false;
+    const id = this.makeKey(qari, surahNum, ayahNum);
+    return new Promise((resolve) => {
+      const tx = db.transaction(this.storeName, 'readwrite');
+      tx.objectStore(this.storeName).put({
+        id,
+        qari,
+        surah: Number(surahNum),
+        ayah: Number(ayahNum),
+        blob: null,
+        opaqueUrl
+      });
+      tx.oncomplete = () => {
+        this.keysSet.add(id);
+        resolve(true);
+      };
+      tx.onerror = () => resolve(false);
+    });
+  },
+
   async clearAll() {
+    if ('caches' in window) {
+      try { await caches.delete('alquran-go-audio-v5'); } catch (e) {}
+    }
     const db = await this.open();
     if (!db) return false;
     return new Promise((resolve) => {
@@ -543,6 +568,7 @@ const MurottalPlayer = {
   currentObjectUrl: null,
   playToken: 0,
   downloadAbortCtrl: null,
+  proxyAvailable: null,
 
   init() {
     this.audio.preload = 'auto';
@@ -555,8 +581,39 @@ const MurottalPlayer = {
     });
   },
 
+  async checkProxy() {
+    if (this.proxyAvailable !== null) return this.proxyAvailable;
+    if (location.protocol === 'file:') {
+      this.proxyAvailable = false;
+      return false;
+    }
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4500);
+      const resp = await fetch('./audio_proxy.php?ping=1', { cache: 'no-store', signal: controller.signal });
+      clearTimeout(timer);
+      if (resp.ok) {
+        const ct = resp.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const data = await resp.json();
+          if (data && data.ok === true) {
+            this.proxyAvailable = true;
+            return true;
+          }
+        }
+      }
+    } catch (e) {}
+    this.proxyAvailable = false;
+    return false;
+  },
+
   getQariCfg(qariKey = AppState.qari) {
     return QARI_CONFIG[qariKey] || QARI_CONFIG.Husary_128kbps;
+  },
+
+  getProxyAudioUrl(qariKey, surahNum, ayahNum) {
+    const q = encodeURIComponent(qariKey || 'Husary_128kbps');
+    return `./audio_proxy.php?qari=${q}&s=${Number(surahNum)}&a=${Number(ayahNum)}`;
   },
 
   getCorsAudioUrls(qariKey, surahNum, ayahNum) {
@@ -566,7 +623,10 @@ const MurottalPlayer = {
     const aaa = String(ayahNum).padStart(3, '0');
     return [
       `https://cdn.islamic.network/quran/audio/128/${cfg.islamicEdition}/${globalId}.mp3`,
-      `https://verses.quran.com/${cfg.quranComFolder}/${sss}${aaa}.mp3`
+      `https://cdn.islamic.network/quran/audio/64/${cfg.islamicEdition}/${globalId}.mp3`,
+      `https://audio.qurancdn.com/${cfg.quranComFolder}/${sss}${aaa}.mp3`,
+      `https://verses.quran.com/${cfg.quranComFolder}/${sss}${aaa}.mp3`,
+      `https://everyayah.com/data/${cfg.everyAyahFolder}/${sss}${aaa}.mp3`
     ];
   },
 
@@ -577,30 +637,79 @@ const MurottalPlayer = {
     return `https://everyayah.com/data/${cfg.everyAyahFolder}/${sss}${aaa}.mp3`;
   },
 
+  async fetchBlobFromUrl(url, isSameOrigin, signal = null) {
+    const opts = isSameOrigin ? { signal } : { mode: 'cors', signal };
+    const resp = await fetch(url, opts);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const ct = (resp.headers.get('content-type') || '').toLowerCase();
+    if (ct.includes('text/html') || ct.includes('application/json')) {
+      throw new Error('Bukan file audio');
+    }
+    const blob = await resp.blob();
+    if (!blob || blob.size < 800) throw new Error('Audio terlalu kecil');
+    return blob.type && blob.type.includes('audio')
+      ? blob
+      : new Blob([blob], { type: 'audio/mpeg' });
+  },
+
   async fetchAudioBlob(qariKey, surahNum, ayahNum, signal = null) {
-    const urls = this.getCorsAudioUrls(qariKey, surahNum, ayahNum);
-    for (const url of urls) {
+    // 1. Utamakan same-origin audio_proxy.php (bebas blokir CORS di hosting PHP)
+    const hasProxy = await this.checkProxy();
+    if (hasProxy) {
       try {
-        const resp = await fetch(url, { mode: 'cors', signal });
-        if (!resp.ok) continue;
-        const blob = await resp.blob();
-        if (blob && blob.size > 800) {
-          return blob.type && blob.type.includes('audio')
-            ? blob
-            : new Blob([blob], { type: 'audio/mpeg' });
-        }
+        return await this.fetchBlobFromUrl(
+          this.getProxyAudioUrl(qariKey, surahNum, ayahNum),
+          true,
+          signal
+        );
       } catch (err) {
         if (err && err.name === 'AbortError') throw err;
       }
     }
+
+    // 2. Fallback langsung ke CDN CORS (untuk hosting statis tanpa PHP)
+    const urls = this.getCorsAudioUrls(qariKey, surahNum, ayahNum);
+    for (const url of urls) {
+      try {
+        return await this.fetchBlobFromUrl(url, false, signal);
+      } catch (err) {
+        if (err && err.name === 'AbortError') throw err;
+      }
+    }
+
     throw new Error(`Gagal mengunduh audio ${surahNum}:${ayahNum}`);
+  },
+
+  // 3. Fallback terakhir untuk hosting statis jika semua CDN blokir CORS: simpan opaque ke Cache API
+  async cacheOpaqueFallback(qariKey, surahNum, ayahNum, signal = null) {
+    if (!('caches' in window)) return false;
+    const url = this.getDirectStreamUrl(qariKey, surahNum, ayahNum);
+    try {
+      const resp = await fetch(url, { mode: 'no-cors', signal });
+      if (resp && (resp.ok || resp.type === 'opaque')) {
+        const cache = await caches.open('alquran-go-audio-v5');
+        await cache.put(url, resp);
+        await AudioDB.putOpaqueMarker(qariKey, surahNum, ayahNum, url);
+        return true;
+      }
+    } catch (err) {
+      if (err && err.name === 'AbortError') throw err;
+    }
+    return false;
   },
 
   async ensureAudioCached(qariKey, surahNum, ayahNum, signal = null) {
     if (AudioDB.has(qariKey, surahNum, ayahNum)) return true;
-    const blob = await this.fetchAudioBlob(qariKey, surahNum, ayahNum, signal);
-    await AudioDB.putBlob(qariKey, surahNum, ayahNum, blob);
-    return true;
+    try {
+      const blob = await this.fetchAudioBlob(qariKey, surahNum, ayahNum, signal);
+      await AudioDB.putBlob(qariKey, surahNum, ayahNum, blob);
+      return true;
+    } catch (err) {
+      if (err && err.name === 'AbortError') throw err;
+      const okOpaque = await this.cacheOpaqueFallback(qariKey, surahNum, ayahNum, signal);
+      if (okOpaque) return true;
+      throw err;
+    }
   },
 
   revokeObjectUrl() {
@@ -657,13 +766,15 @@ const MurottalPlayer = {
     const labelSurah = verse.surahTag || GameSession.pageData.surahLatin;
 
     // 1. Cek IndexedDB terlebih dahulu (100% OFFLINE & INSTAN)
-    let blob = await AudioDB.getBlob(qariKey, verse.surahNumber, verse.numberInSurah);
+    const rec = await AudioDB.getRecord(qariKey, verse.surahNumber, verse.numberInSurah);
     if (myToken !== this.playToken) return;
 
-    let isOfflineSource = !!blob;
+    let blob = rec && rec.blob ? rec.blob : null;
+    let opaqueUrl = rec && rec.opaqueUrl ? rec.opaqueUrl : null;
+    let isOfflineSource = !!(blob || opaqueUrl);
 
     // 2. Jika belum ada di perangkat dan sedang online, unduh Blob & simpan otomatis agar lain kali offline
-    if (!blob && navigator.onLine) {
+    if (!blob && !opaqueUrl && navigator.onLine) {
       if (statusText) statusText.textContent = `Memuat ${labelSurah} · Ayat ${verse.numberInSurah}...`;
       if (bar) bar.classList.remove('hidden');
       try {
@@ -680,7 +791,7 @@ const MurottalPlayer = {
 
     if (myToken !== this.playToken) return;
 
-    if (!blob && !navigator.onLine) {
+    if (!blob && !opaqueUrl && !navigator.onLine) {
       this.clearVisualState();
       showToast('Audio ayat ini belum diunduh offline. Ketuk "⬇️ Audio Hal" saat ada internet.');
       return;
@@ -706,11 +817,13 @@ const MurottalPlayer = {
       artiBtn.textContent = '⏹';
     }
 
-    // Putar dari Blob lokal (IndexedDB) atau fallback stream online
+    // Putar dari Blob lokal (IndexedDB), Cache API, atau fallback stream online
     if (blob) {
       this.revokeObjectUrl();
       this.currentObjectUrl = URL.createObjectURL(blob);
       this.audio.src = this.currentObjectUrl;
+    } else if (opaqueUrl) {
+      this.audio.src = opaqueUrl;
     } else {
       this.audio.src = this.getDirectStreamUrl(qariKey, verse.surahNumber, verse.numberInSurah);
     }
@@ -1205,8 +1318,11 @@ function updateHeaderUI() {
   $('btn-open-offline').textContent = `📥 ${offlineCount}/604 · 🎙️ ${audioQariCount}`;
   $('offline-cache-info').textContent =
     `Tersimpan ${offlineCount} dari 604 halaman teks & arti di perangkat ini.`;
+  const modeHint = MurottalPlayer.proxyAvailable
+    ? 'Mode Server Proxy aktif (siap unduh cepat).'
+    : 'Mode langsung aktif.';
   $('offline-audio-info').textContent =
-    `Tersimpan ${audioQariCount} ayat audio untuk ${qariLabel} (Total semua qari: ${audioTotalCount} ayat). Audio yang sudah diunduh langsung diputar offline tanpa internet.`;
+    `Tersimpan ${audioQariCount} ayat audio untuk ${qariLabel} (Total: ${audioTotalCount} ayat). ${modeHint}`;
 }
 
 function renderJuzGrid() {
@@ -2152,7 +2268,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   PWAInstaller.init();
   populateAudioJuzSelect();
   bindEvents();
-  await Promise.all([QuranLoader.init(), AudioDB.init()]);
+  await Promise.all([QuranLoader.init(), AudioDB.init(), MurottalPlayer.checkProxy()]);
   checkNewGiftUnlocks();
   updateHeaderUI();
   renderJuzGrid();

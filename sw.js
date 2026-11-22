@@ -1,5 +1,6 @@
-const SHELL_CACHE = 'alquran-go-shell-v4';
-const FONT_CACHE = 'alquran-go-fonts-v4';
+const SHELL_CACHE = 'alquran-go-shell-v5';
+const FONT_CACHE = 'alquran-go-fonts-v5';
+const AUDIO_CACHE = 'alquran-go-audio-v5';
 
 const SHELL_ASSETS = [
   './',
@@ -17,7 +18,7 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  const allowed = [SHELL_CACHE, FONT_CACHE];
+  const allowed = [SHELL_CACHE, FONT_CACHE, AUDIO_CACHE];
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
@@ -36,19 +37,34 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
 
-  // 1. API Teks & Audio CDN dilewatkan langsung (penyimpanan offline penuh dikelola di IndexedDB sebagai Blob & JSON)
+  // 1. Proxy PHP lokal & API Teks: lewatkan langsung ke jaringan (disimpan di IndexedDB)
   if (
+    url.pathname.endsWith('audio_proxy.php') ||
     url.hostname.includes('api.alquran.cloud') ||
-    url.hostname.includes('api.quran.com') ||
-    url.hostname.includes('cdn.islamic.network') ||
-    url.hostname.includes('verses.quran.com') ||
-    url.hostname.includes('everyayah.com')
+    url.hostname.includes('api.quran.com')
   ) {
     event.respondWith(fetch(req));
     return;
   }
 
-  // 2. Google Fonts (Stale-While-Revalidate)
+  // 2. CDN Audio Eksternal (fallback untuk static hosting tanpa PHP)
+  if (
+    url.hostname.includes('cdn.islamic.network') ||
+    url.hostname.includes('verses.quran.com') ||
+    url.hostname.includes('audio.qurancdn.com') ||
+    url.hostname.includes('everyayah.com')
+  ) {
+    event.respondWith(
+      caches.open(AUDIO_CACHE).then(async (cache) => {
+        const cached = await cache.match(req.url);
+        if (cached) return cached;
+        return fetch(req);
+      })
+    );
+    return;
+  }
+
+  // 3. Google Fonts (Stale-While-Revalidate)
   if (url.hostname.includes('fonts.googleapis.com') || url.hostname.includes('fonts.gstatic.com')) {
     event.respondWith(
       caches.open(FONT_CACHE).then(async (cache) => {
@@ -67,7 +83,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. App Shell Lokal (Network-First agar pembaruan kode langsung masuk, fallback ke Cache saat offline)
+  // 4. App Shell Lokal (Network-First)
   if (url.origin === self.location.origin) {
     event.respondWith(
       fetch(req)
