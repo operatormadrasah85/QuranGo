@@ -62,7 +62,7 @@
       font-family: var(--font-ui);
       background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 38%, var(--grass-main) 38.1%, var(--grass-dark) 100%);
       color: var(--text-dark);
-      overflow-x: hidden;
+      overflow-x: clip;
     }
 
     .app-shell {
@@ -340,15 +340,23 @@
     .juz-mini-bar { width: 82%; height: 5px; background: #E2E8F0; border-radius: 999px; margin-top: 4px; overflow: hidden; }
     .juz-mini-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #4ADE80, #16A34A); border-radius: 999px; transition: width 0.3s ease; }
 
-    /* ================= LAYAR PERMAINAN ================= */
+    /* ================= LAYAR PERMAINAN (HEADER & MENU BAWAH STICKY PENUH) ================= */
     #screen-game {
-      background: linear-gradient(180deg, #83CEF9 0%, #B8E5FF 92px, var(--grass-main) 92px);
-      min-height: 100vh;
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      max-width: 780px;
+      height: 100vh;
+      height: 100dvh;
+      margin: 0 auto;
+      overflow: hidden;
+      z-index: 30;
+      background: linear-gradient(180deg, #9FD9FC 0%, #9FD9FC 165px, var(--grass-main) 165px);
+      box-shadow: 0 0 40px rgba(15, 45, 90, 0.16);
     }
 
     .game-header {
-      position: sticky;
-      top: 0;
+      flex-shrink: 0;
       z-index: 20;
       background: linear-gradient(180deg, #7CC9F8 0%, #9FD9FC 100%);
       padding: max(10px, env(safe-area-inset-top)) 14px 10px;
@@ -364,6 +372,7 @@
     .game-surah-arabic { font-family: var(--font-arabic); font-size: 20px; font-weight: 700; color: #D92B2B; line-height: 1.1; margin-top: -2px; }
 
     .game-meta-row {
+      flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -395,22 +404,26 @@
     .game-progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #FFE033, #22C55E); border-radius: 999px; transition: width 0.25s ease; }
 
     .mushaf-outer {
-      flex: 1;
-      padding: 8px 10px 12px;
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 10px 10px 22px;
       background: var(--grass-main);
       border-radius: 24px 24px 0 0;
       display: flex;
       flex-direction: column;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
     }
 
     .mushaf-page {
       background: var(--mushaf-bg);
       border: 3px solid #D9F2C7;
       border-radius: 20px;
-      padding: 12px 14px 18px;
+      padding: 12px 14px 20px;
       box-shadow: inset 0 0 18px rgba(217, 198, 148, 0.22), 0 6px 16px rgba(31, 88, 12, 0.18);
-      flex: 1;
+      flex: 0 0 auto;
+      min-height: 100%;
       display: flex;
       flex-direction: column;
     }
@@ -512,10 +525,14 @@
     .murottal-mini-btn { border: none; background: rgba(255, 255, 255, 0.2); color: #FFFFFF; border-radius: 8px; padding: 4px 8px; font-family: var(--font-ui); font-size: 12px; font-weight: 800; cursor: pointer; }
 
     .word-tray {
-      position: sticky; bottom: 0; z-index: 25;
-      background: var(--tray-bg); border-top: 3px solid #EBDDB8;
-      border-radius: 22px 22px 0 0; padding: 10px 14px max(16px, env(safe-area-inset-bottom));
-      box-shadow: 0 -6px 20px rgba(20, 43, 94, 0.14);
+      flex-shrink: 0;
+      position: relative;
+      z-index: 25;
+      background: var(--tray-bg);
+      border-top: 3px solid #EBDDB8;
+      border-radius: 22px 22px 0 0;
+      padding: 10px 14px max(14px, env(safe-area-inset-bottom));
+      box-shadow: 0 -6px 20px rgba(20, 43, 94, 0.18);
     }
 
     .tray-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 8px; }
@@ -832,7 +849,7 @@
         </div>
       </div>
 
-      <div class="mushaf-outer">
+      <div class="mushaf-outer" id="mushaf-outer">
         <div class="mushaf-page" id="mushaf-page">
           <div class="surah-banner" id="mushaf-surah-banner">سورة النبأ</div>
           <div class="basmalah-line" id="mushaf-basmalah">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</div>
@@ -1047,6 +1064,6 @@
 
   <div class="toast" id="toast"></div>
 
-  <script src="./app.js?v=5"></script>
+  <script src="./app.js?v=6"></script>
 </body>
 </html>

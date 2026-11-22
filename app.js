@@ -1465,6 +1465,8 @@ async function startGame(pageNum, juzObj = null) {
   GameSession.isBusy = false;
 
   showScreen('screen-game');
+  const mushafScroll = $('mushaf-outer');
+  if (mushafScroll) mushafScroll.scrollTop = 0;
   updateMurottalBadge();
 
   $('game-surah-latin').textContent = `Juz ${targetJuz.juz} · hal ${pageNum}`;
