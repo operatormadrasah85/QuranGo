@@ -1,6 +1,5 @@
-const SHELL_CACHE = 'alquran-play-shell-v3';
-const DATA_CACHE = 'alquran-play-data-v3';
-const AUDIO_CACHE = 'alquran-play-audio-v3';
+const SHELL_CACHE = 'alquran-go-shell-v4';
+const FONT_CACHE = 'alquran-go-fonts-v4';
 
 const SHELL_ASSETS = [
   './',
@@ -18,7 +17,7 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  const allowed = [SHELL_CACHE, DATA_CACHE, AUDIO_CACHE];
+  const allowed = [SHELL_CACHE, FONT_CACHE];
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
@@ -37,44 +36,22 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
 
-  // 1. Audio Murottal MP3 (Cache-First)
+  // 1. API Teks & Audio CDN dilewatkan langsung (penyimpanan offline penuh dikelola di IndexedDB sebagai Blob & JSON)
   if (
-    url.hostname.includes('everyayah.com') ||
+    url.hostname.includes('api.alquran.cloud') ||
+    url.hostname.includes('api.quran.com') ||
     url.hostname.includes('cdn.islamic.network') ||
-    url.pathname.endsWith('.mp3')
+    url.hostname.includes('verses.quran.com') ||
+    url.hostname.includes('everyayah.com')
   ) {
-    if (req.headers.has('range')) {
-      event.respondWith(fetch(req));
-      return;
-    }
-    event.respondWith(
-      caches.open(AUDIO_CACHE).then(async (cache) => {
-        const cached = await cache.match(req);
-        if (cached) return cached;
-        try {
-          const networkRes = await fetch(req);
-          if (networkRes && (networkRes.status === 200 || networkRes.type === 'opaque')) {
-            cache.put(req, networkRes.clone());
-          }
-          return networkRes;
-        } catch (err) {
-          return new Response('', { status: 503, statusText: 'Audio Offline Unavailable' });
-        }
-      })
-    );
-    return;
-  }
-
-  // 2. API Teks Al-Qur'an (AlQuran Cloud & Quran.com) - Lewatkan langsung & simpan di IndexedDB
-  if (url.hostname.includes('api.alquran.cloud') || url.hostname.includes('api.quran.com')) {
     event.respondWith(fetch(req));
     return;
   }
 
-  // 3. Google Fonts (Stale-While-Revalidate)
+  // 2. Google Fonts (Stale-While-Revalidate)
   if (url.hostname.includes('fonts.googleapis.com') || url.hostname.includes('fonts.gstatic.com')) {
     event.respondWith(
-      caches.open(DATA_CACHE).then(async (cache) => {
+      caches.open(FONT_CACHE).then(async (cache) => {
         const cached = await cache.match(req);
         const fetchPromise = fetch(req)
           .then((res) => {
@@ -90,7 +67,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 4. App Shell Lokal (Network-First agar pembaruan kode langsung aktif, fallback ke Cache saat offline)
+  // 3. App Shell Lokal (Network-First agar pembaruan kode langsung masuk, fallback ke Cache saat offline)
   if (url.origin === self.location.origin) {
     event.respondWith(
       fetch(req)
@@ -101,7 +78,9 @@ self.addEventListener('fetch', (event) => {
           }
           return res;
         })
-        .catch(() => caches.match(req).then((c) => c || caches.match('./index.html')))
+        .catch(() =>
+          caches.match(req, { ignoreSearch: true }).then((c) => c || caches.match('./index.html'))
+        )
     );
   }
 });

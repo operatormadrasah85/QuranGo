@@ -1,7 +1,7 @@
 {
-  "name": "AlQur'an Play · 30 Juz",
-  "short_name": "AlQur'an Play",
-  "description": "Game hafalan Al-Qur'an 30 Juz untuk anak: Tebak Ayat, Tebak Arti, Murottal per Ayat, Bintang & Kartu Hadiah.",
+  "name": "Al-Qur'an Go · 30 Juz",
+  "short_name": "Al-Qur'an Go",
+  "description": "Al-Qur'an Go - Game hafalan Al-Qur'an 30 Juz untuk anak: Tebak Ayat, Tebak Arti, Murottal Offline per Ayat, Bintang & Kartu Hadiah.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

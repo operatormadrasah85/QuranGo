@@ -1,7 +1,7 @@
 'use strict';
 
 /* =========================================================================
-   1. PETA 30 JUZ & 114 SURAH (MUSHAF MADINAH 604 HALAMAN)
+   1. PETA 30 JUZ, 114 SURAH, & JUMLAH AYAT (HAFS 6236 AYAT)
    ========================================================================= */
 const JUZ_LIST = [
   { juz: 1,  surah: "Al-Fatihah",   startPage: 1,   endPage: 21  },
@@ -36,7 +36,6 @@ const JUZ_LIST = [
   { juz: 30, surah: "An-Naba'",     startPage: 582, endPage: 604 }
 ];
 
-// [Latin, Arab] index 1..114
 const SURAH_META = [
   null,
   ["Al-Fatihah","الفاتحة"],["Al-Baqarah","البقرة"],["Ali 'Imran","آل عمران"],["An-Nisa'","النساء"],
@@ -70,6 +69,60 @@ const SURAH_META = [
   ["Al-Falaq","الفلق"],["An-Nas","الناس"]
 ];
 
+const SURAH_AYAH_COUNTS = [
+  0,
+  7,286,200,176,120,165,206,75,129,109,
+  123,111,43,52,99,128,111,110,98,135,
+  112,78,118,64,77,227,93,88,69,60,
+  34,30,73,54,45,83,182,88,75,85,
+  54,53,89,59,37,35,38,29,18,45,
+  60,49,62,55,78,96,29,22,24,13,
+  14,11,11,18,12,12,30,52,52,44,
+  28,28,20,56,40,31,50,40,46,42,
+  29,19,36,25,22,17,19,26,30,20,
+  15,21,11,8,8,19,5,8,8,11,
+  11,8,3,9,5,4,7,3,6,3,
+  5,4,5,6
+];
+
+const SURAH_OFFSETS = (() => {
+  const arr = [0];
+  let acc = 0;
+  for (let i = 1; i <= 114; i++) {
+    arr[i] = acc;
+    acc += SURAH_AYAH_COUNTS[i];
+  }
+  return arr;
+})();
+
+function getGlobalAyahNumber(surahNum, ayahNum) {
+  const s = Number(surahNum);
+  const a = Number(ayahNum);
+  if (s < 1 || s > 114) return 1;
+  return SURAH_OFFSETS[s] + a;
+}
+
+const QARI_CONFIG = {
+  Husary_128kbps: {
+    label: 'Syekh Al-Husary',
+    islamicEdition: 'ar.husary',
+    quranComFolder: 'Husary/mp3',
+    everyAyahFolder: 'Husary_128kbps'
+  },
+  Alafasy_128kbps: {
+    label: 'Syekh Mishary Alafasy',
+    islamicEdition: 'ar.alafasy',
+    quranComFolder: 'Alafasy/mp3',
+    everyAyahFolder: 'Alafasy_128kbps'
+  },
+  Minshawy_Murattal_128kbps: {
+    label: 'Syekh Al-Minshawi',
+    islamicEdition: 'ar.minshawi',
+    quranComFolder: 'Minshawi/Murattal/mp3',
+    everyAyahFolder: 'Minshawy_Murattal_128kbps'
+  }
+};
+
 /* =========================================================================
    2. KOLEKSI KARTU HADIAH
    ========================================================================= */
@@ -89,7 +142,7 @@ const GIFT_CARDS = [
 ];
 
 /* =========================================================================
-   3. DATA HALAMAN OFFLINE BAWAAN (LANGSUNG BISA DIMAINKAN TANPA INTERNET)
+   3. DATA HALAMAN OFFLINE BAWAAN
    ========================================================================= */
 const BUILTIN_PAGES = {
   1: {
@@ -162,9 +215,9 @@ const BUILTIN_PAGES = {
 };
 
 /* =========================================================================
-   4. STATE APLIKASI & PENYIMPANAN PROGRES
+   4. STATE APLIKASI & PENYIMPANAN PROGRES (TETAP MENJAGA PROGRES LAMA)
    ========================================================================= */
-const STORAGE_KEY = 'alquran_play_state_v2';
+const STORAGE_KEY = 'alquran_go_state_v1';
 
 const DEFAULT_STATE = {
   username: 'Sahabat Quran',
@@ -182,7 +235,10 @@ const AppState = loadState();
 
 function loadState() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('alquran_play_state_v1');
+    const raw =
+      localStorage.getItem(STORAGE_KEY) ||
+      localStorage.getItem('alquran_play_state_v2') ||
+      localStorage.getItem('alquran_play_state_v1');
     if (!raw) return { ...DEFAULT_STATE, progress: {}, unlockedGifts: [] };
     const parsed = JSON.parse(raw);
     return {
@@ -238,7 +294,7 @@ function checkNewGiftUnlocks() {
 }
 
 /* =========================================================================
-   5. PENYIMPANAN INDEXEDDB UNTUK 604 HALAMAN (MUAT 30 JUZ PENUH TANPA LIMIT 5MB)
+   5. INDEXEDDB TEKS 604 HALAMAN (PageDB) & AUDIO MP3 BLOB OFFLINE (AudioDB)
    ========================================================================= */
 const PageDB = {
   dbName: 'alquran_play_pages_db',
@@ -248,10 +304,7 @@ const PageDB = {
   open() {
     if (this.db) return Promise.resolve(this.db);
     return new Promise((resolve) => {
-      if (!('indexedDB' in window)) {
-        resolve(null);
-        return;
-      }
+      if (!('indexedDB' in window)) { resolve(null); return; }
       const req = indexedDB.open(this.dbName, 1);
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
@@ -259,10 +312,7 @@ const PageDB = {
           db.createObjectStore(this.storeName, { keyPath: 'page' });
         }
       };
-      req.onsuccess = (e) => {
-        this.db = e.target.result;
-        resolve(this.db);
-      };
+      req.onsuccess = (e) => { this.db = e.target.result; resolve(this.db); };
       req.onerror = () => resolve(null);
     });
   },
@@ -272,9 +322,8 @@ const PageDB = {
     if (!db) return new Map();
     return new Promise((resolve) => {
       const tx = db.transaction(this.storeName, 'readonly');
-      const store = tx.objectStore(this.storeName);
       const map = new Map();
-      const req = store.openCursor();
+      const req = tx.objectStore(this.storeName).openCursor();
       req.onsuccess = (e) => {
         const cursor = e.target.result;
         if (cursor) {
@@ -318,6 +367,109 @@ const PageDB = {
       const store = tx.objectStore(this.storeName);
       pageArray.forEach(p => store.put(p));
       tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    });
+  }
+};
+
+const AudioDB = {
+  dbName: 'alquran_go_audio_db',
+  storeName: 'audio',
+  db: null,
+  keysSet: new Set(), // Cache cepat di RAM: `${qari}_${surah}_${ayah}`
+
+  makeKey(qari, surahNum, ayahNum) {
+    return `${qari}_${Number(surahNum)}_${Number(ayahNum)}`;
+  },
+
+  open() {
+    if (this.db) return Promise.resolve(this.db);
+    return new Promise((resolve) => {
+      if (!('indexedDB' in window)) { resolve(null); return; }
+      const req = indexedDB.open(this.dbName, 1);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = (e) => { this.db = e.target.result; resolve(this.db); };
+      req.onerror = () => resolve(null);
+    });
+  },
+
+  async init() {
+    const db = await this.open();
+    if (!db) return;
+    return new Promise((resolve) => {
+      const tx = db.transaction(this.storeName, 'readonly');
+      const req = tx.objectStore(this.storeName).getAllKeys();
+      req.onsuccess = () => {
+        this.keysSet = new Set(req.result || []);
+        resolve();
+      };
+      req.onerror = () => resolve();
+    });
+  },
+
+  has(qari, surahNum, ayahNum) {
+    return this.keysSet.has(this.makeKey(qari, surahNum, ayahNum));
+  },
+
+  countByQari(qari) {
+    const prefix = `${qari}_`;
+    let count = 0;
+    this.keysSet.forEach(k => { if (k.startsWith(prefix)) count++; });
+    return count;
+  },
+
+  countTotal() {
+    return this.keysSet.size;
+  },
+
+  async getBlob(qari, surahNum, ayahNum) {
+    const db = await this.open();
+    if (!db) return null;
+    const id = this.makeKey(qari, surahNum, ayahNum);
+    return new Promise((resolve) => {
+      const tx = db.transaction(this.storeName, 'readonly');
+      const req = tx.objectStore(this.storeName).get(id);
+      req.onsuccess = () => resolve(req.result ? req.result.blob : null);
+      req.onerror = () => resolve(null);
+    });
+  },
+
+  async putBlob(qari, surahNum, ayahNum, blob) {
+    const db = await this.open();
+    if (!db) return false;
+    const id = this.makeKey(qari, surahNum, ayahNum);
+    return new Promise((resolve) => {
+      const tx = db.transaction(this.storeName, 'readwrite');
+      tx.objectStore(this.storeName).put({
+        id,
+        qari,
+        surah: Number(surahNum),
+        ayah: Number(ayahNum),
+        blob
+      });
+      tx.oncomplete = () => {
+        this.keysSet.add(id);
+        resolve(true);
+      };
+      tx.onerror = () => resolve(false);
+    });
+  },
+
+  async clearAll() {
+    const db = await this.open();
+    if (!db) return false;
+    return new Promise((resolve) => {
+      const tx = db.transaction(this.storeName, 'readwrite');
+      tx.objectStore(this.storeName).clear();
+      tx.oncomplete = () => {
+        this.keysSet.clear();
+        resolve(true);
+      };
       tx.onerror = () => resolve(false);
     });
   }
@@ -382,12 +534,15 @@ const SoundFX = {
 };
 
 /* =========================================================================
-   7. PEMUTAR AUDIO MUROTTAL PER AYAT
+   7. PEMUTAR & PENGUNDUH AUDIO MUROTTAL OFFLINE (INDEXEDDB BLOB)
    ========================================================================= */
 const MurottalPlayer = {
   audio: new Audio(),
   activeVerseIndex: -1,
   lastPlayedVerseIndex: -1,
+  currentObjectUrl: null,
+  playToken: 0,
+  downloadAbortCtrl: null,
 
   init() {
     this.audio.preload = 'auto';
@@ -395,16 +550,64 @@ const MurottalPlayer = {
     this.audio.addEventListener('error', () => {
       this.clearVisualState();
       if (!navigator.onLine) {
-        showToast('Audio ayat ini belum tersimpan offline. Aktifkan internet sekali untuk mendengarkan.');
+        showToast('Audio ayat ini belum diunduh offline. Tekan "⬇️ Audio Hal" saat online.');
       }
     });
   },
 
-  buildUrl(surahNum, ayahNum) {
-    const qari = AppState.qari || 'Husary_128kbps';
+  getQariCfg(qariKey = AppState.qari) {
+    return QARI_CONFIG[qariKey] || QARI_CONFIG.Husary_128kbps;
+  },
+
+  getCorsAudioUrls(qariKey, surahNum, ayahNum) {
+    const cfg = this.getQariCfg(qariKey);
+    const globalId = getGlobalAyahNumber(surahNum, ayahNum);
     const sss = String(surahNum).padStart(3, '0');
     const aaa = String(ayahNum).padStart(3, '0');
-    return `https://everyayah.com/data/${qari}/${sss}${aaa}.mp3`;
+    return [
+      `https://cdn.islamic.network/quran/audio/128/${cfg.islamicEdition}/${globalId}.mp3`,
+      `https://verses.quran.com/${cfg.quranComFolder}/${sss}${aaa}.mp3`
+    ];
+  },
+
+  getDirectStreamUrl(qariKey, surahNum, ayahNum) {
+    const cfg = this.getQariCfg(qariKey);
+    const sss = String(surahNum).padStart(3, '0');
+    const aaa = String(ayahNum).padStart(3, '0');
+    return `https://everyayah.com/data/${cfg.everyAyahFolder}/${sss}${aaa}.mp3`;
+  },
+
+  async fetchAudioBlob(qariKey, surahNum, ayahNum, signal = null) {
+    const urls = this.getCorsAudioUrls(qariKey, surahNum, ayahNum);
+    for (const url of urls) {
+      try {
+        const resp = await fetch(url, { mode: 'cors', signal });
+        if (!resp.ok) continue;
+        const blob = await resp.blob();
+        if (blob && blob.size > 800) {
+          return blob.type && blob.type.includes('audio')
+            ? blob
+            : new Blob([blob], { type: 'audio/mpeg' });
+        }
+      } catch (err) {
+        if (err && err.name === 'AbortError') throw err;
+      }
+    }
+    throw new Error(`Gagal mengunduh audio ${surahNum}:${ayahNum}`);
+  },
+
+  async ensureAudioCached(qariKey, surahNum, ayahNum, signal = null) {
+    if (AudioDB.has(qariKey, surahNum, ayahNum)) return true;
+    const blob = await this.fetchAudioBlob(qariKey, surahNum, ayahNum, signal);
+    await AudioDB.putBlob(qariKey, surahNum, ayahNum, blob);
+    return true;
+  },
+
+  revokeObjectUrl() {
+    if (this.currentObjectUrl) {
+      try { URL.revokeObjectURL(this.currentObjectUrl); } catch (e) {}
+      this.currentObjectUrl = null;
+    }
   },
 
   clearVisualState() {
@@ -422,14 +625,16 @@ const MurottalPlayer = {
   },
 
   stop() {
+    this.playToken++;
     try {
       this.audio.pause();
       this.audio.currentTime = 0;
     } catch (e) {}
+    this.revokeObjectUrl();
     this.clearVisualState();
   },
 
-  playVerse(verseIndex, isManual = false) {
+  async playVerse(verseIndex, isManual = false) {
     if (!AppState.soundOn && !isManual) return;
     if (!GameSession.pageData || !GameSession.pageData.verses) return;
 
@@ -442,18 +647,49 @@ const MurottalPlayer = {
     }
 
     this.stop();
+    const myToken = ++this.playToken;
     this.activeVerseIndex = verseIndex;
     this.lastPlayedVerseIndex = verseIndex;
 
-    const url = this.buildUrl(verse.surahNumber, verse.numberInSurah);
-    if (navigator.onLine) {
-      fetch(url, { mode: 'no-cors' }).catch(() => {});
-    }
-
+    const qariKey = AppState.qari || 'Husary_128kbps';
     const bar = document.getElementById('murottal-bar');
     const statusText = document.getElementById('murottal-status-text');
     const labelSurah = verse.surahTag || GameSession.pageData.surahLatin;
-    if (statusText) statusText.textContent = `Murottal ${labelSurah} · Ayat ${verse.numberInSurah}`;
+
+    // 1. Cek IndexedDB terlebih dahulu (100% OFFLINE & INSTAN)
+    let blob = await AudioDB.getBlob(qariKey, verse.surahNumber, verse.numberInSurah);
+    if (myToken !== this.playToken) return;
+
+    let isOfflineSource = !!blob;
+
+    // 2. Jika belum ada di perangkat dan sedang online, unduh Blob & simpan otomatis agar lain kali offline
+    if (!blob && navigator.onLine) {
+      if (statusText) statusText.textContent = `Memuat ${labelSurah} · Ayat ${verse.numberInSurah}...`;
+      if (bar) bar.classList.remove('hidden');
+      try {
+        blob = await this.fetchAudioBlob(qariKey, verse.surahNumber, verse.numberInSurah);
+        if (myToken !== this.playToken) return;
+        await AudioDB.putBlob(qariKey, verse.surahNumber, verse.numberInSurah, blob);
+        isOfflineSource = true;
+        updatePageAudioButton();
+        updateHeaderUI();
+      } catch (e) {
+        blob = null;
+      }
+    }
+
+    if (myToken !== this.playToken) return;
+
+    if (!blob && !navigator.onLine) {
+      this.clearVisualState();
+      showToast('Audio ayat ini belum diunduh offline. Ketuk "⬇️ Audio Hal" saat ada internet.');
+      return;
+    }
+
+    // Tampilkan sorotan visual & mini-bar
+    if (statusText) {
+      statusText.textContent = `${isOfflineSource ? '⚡ ' : ''}Murottal ${labelSurah} · Ayat ${verse.numberInSurah}`;
+    }
     if (bar) bar.classList.remove('hidden');
 
     document.querySelectorAll(`.mushaf-word[data-verse-index="${verseIndex}"]`).forEach(el => {
@@ -470,7 +706,15 @@ const MurottalPlayer = {
       artiBtn.textContent = '⏹';
     }
 
-    this.audio.src = url;
+    // Putar dari Blob lokal (IndexedDB) atau fallback stream online
+    if (blob) {
+      this.revokeObjectUrl();
+      this.currentObjectUrl = URL.createObjectURL(blob);
+      this.audio.src = this.currentObjectUrl;
+    } else {
+      this.audio.src = this.getDirectStreamUrl(qariKey, verse.surahNumber, verse.numberInSurah);
+    }
+
     const playPromise = this.audio.play();
     if (playPromise && typeof playPromise.catch === 'function') {
       playPromise.catch(() => this.clearVisualState());
@@ -479,6 +723,64 @@ const MurottalPlayer = {
 
   replayLast() {
     if (this.lastPlayedVerseIndex >= 0) this.playVerse(this.lastPlayedVerseIndex, true);
+  },
+
+  cancelDownload() {
+    if (this.downloadAbortCtrl) {
+      this.downloadAbortCtrl.abort();
+      this.downloadAbortCtrl = null;
+    }
+  },
+
+  // Unduh daftar ayat [{ surahNumber, numberInSurah }] ke IndexedDB dengan concurrency 3
+  async downloadVersesBatch(versesList, onProgress) {
+    const qariKey = AppState.qari || 'Husary_128kbps';
+    // Hilangkan duplikat
+    const uniqueMap = new Map();
+    versesList.forEach(v => {
+      if (v && v.surahNumber && v.numberInSurah) {
+        uniqueMap.set(`${v.surahNumber}:${v.numberInSurah}`, {
+          surahNumber: Number(v.surahNumber),
+          numberInSurah: Number(v.numberInSurah)
+        });
+      }
+    });
+    const uniqueList = Array.from(uniqueMap.values());
+    const total = uniqueList.length;
+    if (total === 0) return { ok: 0, total: 0, aborted: false };
+
+    this.cancelDownload();
+    const ctrl = new AbortController();
+    this.downloadAbortCtrl = ctrl;
+
+    let done = 0;
+    let ok = 0;
+    let aborted = false;
+    const batchSize = 3;
+
+    for (let i = 0; i < total; i += batchSize) {
+      if (ctrl.signal.aborted) { aborted = true; break; }
+      const slice = uniqueList.slice(i, i + batchSize);
+      await Promise.all(
+        slice.map(async (item) => {
+          try {
+            await this.ensureAudioCached(qariKey, item.surahNumber, item.numberInSurah, ctrl.signal);
+            ok++;
+          } catch (err) {
+            if (err && err.name === 'AbortError') aborted = true;
+          } finally {
+            done++;
+            if (typeof onProgress === 'function' && !aborted) {
+              onProgress(done, total, ok);
+            }
+          }
+        })
+      );
+      if (aborted) break;
+    }
+
+    if (this.downloadAbortCtrl === ctrl) this.downloadAbortCtrl = null;
+    return { ok, total, aborted };
   }
 };
 
@@ -594,7 +896,7 @@ function buildPageObject(pageNum, verses) {
 }
 
 const QuranLoader = {
-  offlineMeta: new Map(), // Map<pageNum, surahLatin>
+  offlineMeta: new Map(),
 
   async init() {
     Object.values(BUILTIN_PAGES).forEach(p => {
@@ -606,19 +908,10 @@ const QuranLoader = {
     });
   },
 
-  isPageOffline(pageNum) {
-    return this.offlineMeta.has(Number(pageNum));
-  },
+  isPageOffline(pageNum) { return this.offlineMeta.has(Number(pageNum)); },
+  getOfflineTitle(pageNum) { return this.offlineMeta.get(Number(pageNum)) || null; },
+  countOfflinePages() { return this.offlineMeta.size; },
 
-  getOfflineTitle(pageNum) {
-    return this.offlineMeta.get(Number(pageNum)) || null;
-  },
-
-  countOfflinePages() {
-    return this.offlineMeta.size;
-  },
-
-  // Sumber 1: AlQuran Cloud (2 endpoint single-edition yang valid)
   async fetchPageFromAlQuranCloud(pageNum) {
     const [arJson, idJson] = await Promise.all([
       fetchJsonWithTimeout(`https://api.alquran.cloud/v1/page/${pageNum}/quran-uthmani`, 12000),
@@ -645,7 +938,6 @@ const QuranLoader = {
     return buildPageObject(pageNum, verses);
   },
 
-  // Sumber 2 (Fallback): Quran.com API v4 (Terjemahan Kemenag RI = 33)
   async fetchPageFromQuranCom(pageNum) {
     const url = `https://api.quran.com/api/v4/verses/by_page/${pageNum}?language=id&translations=33&fields=text_uthmani&per_page=50`;
     const json = await fetchJsonWithTimeout(url, 12000);
@@ -684,7 +976,6 @@ const QuranLoader = {
     try {
       pageData = await this.fetchPageFromAlQuranCloud(pNum);
     } catch (e1) {
-      console.warn(`AlQuran Cloud gagal untuk hal ${pNum}, beralih ke Quran.com:`, e1);
       pageData = await this.fetchPageFromQuranCom(pNum);
     }
 
@@ -695,24 +986,25 @@ const QuranLoader = {
 
   async downloadJuzOffline(juzNumber, onProgress) {
     const juzObj = JUZ_LIST.find(j => j.juz === juzNumber);
-    if (!juzObj) return { ok: 0, total: 0 };
+    if (!juzObj) return { ok: 0, total: 0, pages: [] };
 
     const total = juzObj.endPage - juzObj.startPage + 1;
     let ok = 0;
+    const pages = [];
 
     for (let p = juzObj.startPage; p <= juzObj.endPage; p++) {
       try {
-        await this.loadPage(p);
+        const pd = await this.loadPage(p);
+        pages.push(pd);
         ok++;
       } catch (e) {
         console.warn('Gagal mengunduh halaman', p, e);
       }
       if (typeof onProgress === 'function') onProgress(ok, total, p);
     }
-    return { ok, total };
+    return { ok, total, pages };
   },
 
-  // Unduh Seluruh 30 Juz (604 Halaman): utamakan 2 request cepat, fallback batch Quran.com jika gagal
   async downloadAll30Juz(onProgress) {
     try {
       if (typeof onProgress === 'function') onProgress(10, 'Mengunduh teks Arab 30 Juz...');
@@ -762,13 +1054,12 @@ const QuranLoader = {
 
       if (typeof onProgress === 'function') onProgress(92, `Menyimpan ${allPages.length} halaman ke perangkat...`);
       const saved = await PageDB.putManyPages(allPages);
-      if (!saved) throw new Error('Gagal menyimpan ke IndexedDB perangkat');
+      if (!saved) throw new Error('Gagal menyimpan ke IndexedDB');
 
       allPages.forEach(p => this.offlineMeta.set(p.page, p.surahLatin));
       if (typeof onProgress === 'function') onProgress(100, `Selesai! ${allPages.length} halaman siap offline.`);
       return allPages.length;
     } catch (bulkErr) {
-      console.warn('Unduh cepat AlQuran Cloud gagal, beralih ke server cadangan Quran.com:', bulkErr);
       let ok = 0;
       const batchSize = 5;
       for (let start = 1; start <= 604; start += batchSize) {
@@ -818,6 +1109,7 @@ const GameSession = {
   isBusy: false
 };
 
+let activeModalJuzObj = null;
 let toastTimer = null;
 
 function showToast(msg, duration = 2800) {
@@ -860,6 +1152,33 @@ function updateMurottalBadge() {
   btn.classList.toggle('murottal-off', !AppState.autoMurottal);
 }
 
+function updatePageAudioButton() {
+  const btn = $('btn-dl-page-audio');
+  if (!btn || !GameSession.pageData || !Array.isArray(GameSession.pageData.verses)) return;
+
+  const qariKey = AppState.qari || 'Husary_128kbps';
+  const verses = GameSession.pageData.verses;
+  const total = verses.length;
+  let cached = 0;
+  verses.forEach(v => {
+    if (AudioDB.has(qariKey, v.surahNumber, v.numberInSurah)) cached++;
+  });
+
+  if (total > 0 && cached === total) {
+    btn.textContent = '✅ Audio Offline';
+    btn.classList.remove('audio-dl-ready');
+    btn.classList.add('audio-dl-done');
+  } else if (cached > 0) {
+    btn.textContent = `⬇️ Audio (${cached}/${total})`;
+    btn.classList.add('audio-dl-ready');
+    btn.classList.remove('audio-dl-done');
+  } else {
+    btn.textContent = '⬇️ Audio Hal';
+    btn.classList.add('audio-dl-ready');
+    btn.classList.remove('audio-dl-done');
+  }
+}
+
 function updateHeaderUI() {
   $('header-avatar').textContent = AppState.avatar;
   $('header-username').textContent = AppState.username;
@@ -878,9 +1197,16 @@ function updateHeaderUI() {
   $('progress-label').textContent = `Progres: ${modeText} · ${levelText}`;
 
   const offlineCount = QuranLoader.countOfflinePages();
-  $('btn-open-offline').textContent = `📥 Offline: ${offlineCount}/604`;
+  const qariKey = AppState.qari || 'Husary_128kbps';
+  const qariLabel = MurottalPlayer.getQariCfg(qariKey).label;
+  const audioQariCount = AudioDB.countByQari(qariKey);
+  const audioTotalCount = AudioDB.countTotal();
+
+  $('btn-open-offline').textContent = `📥 ${offlineCount}/604 · 🎙️ ${audioQariCount}`;
   $('offline-cache-info').textContent =
-    `Saat ini ${offlineCount} dari 604 halaman mushaf tersimpan offline di perangkat ini. Klik tombol biru di bawah untuk mengunduh seluruh 30 Juz sekaligus (±2,5 MB).`;
+    `Tersimpan ${offlineCount} dari 604 halaman teks & arti di perangkat ini.`;
+  $('offline-audio-info').textContent =
+    `Tersimpan ${audioQariCount} ayat audio untuk ${qariLabel} (Total semua qari: ${audioTotalCount} ayat). Audio yang sudah diunduh langsung diputar offline tanpa internet.`;
 }
 
 function renderJuzGrid() {
@@ -894,10 +1220,7 @@ function renderJuzGrid() {
 
     let hasAnyOffline = false;
     for (let p = juzObj.startPage; p <= juzObj.endPage; p++) {
-      if (QuranLoader.isPageOffline(p)) {
-        hasAnyOffline = true;
-        break;
-      }
+      if (QuranLoader.isPageOffline(p)) { hasAnyOffline = true; break; }
     }
 
     const card = document.createElement('button');
@@ -921,12 +1244,30 @@ function renderJuzGrid() {
   });
 }
 
+function populateAudioJuzSelect() {
+  const sel = $('select-audio-juz');
+  if (!sel) return;
+  sel.innerHTML = '';
+  JUZ_LIST.forEach(j => {
+    const opt = document.createElement('option');
+    opt.value = j.juz;
+    opt.textContent = `Juz ${j.juz} · ${j.surah} (Hal ${j.startPage}-${j.endPage})`;
+    if (j.juz === 30) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
 function openJuzModal(juzObj) {
+  activeModalJuzObj = juzObj;
   $('modal-juz-title').textContent = `Juz ${juzObj.juz} · ${juzObj.surah}`;
   const modeName = AppState.mode === 'ayat' ? 'Tebak Ayat' : 'Tebak Arti';
   const levelName = AppState.level === 1 ? 'Level 1 (Ada Bayangan)' : 'Level 2 (Tanpa Bayangan)';
   $('modal-juz-desc').textContent =
-    `Mode aktif: ${modeName} · ${levelName}. Pilih halaman mushaf di bawah ini (⚡ = siap 100% offline).`;
+    `Mode aktif: ${modeName} · ${levelName}. Pilih halaman mushaf di bawah ini (⚡ = teks siap offline).`;
+
+  const qariLabel = MurottalPlayer.getQariCfg(AppState.qari).label;
+  $('modal-juz-audio-info').textContent = `🎙️ Audio Juz ${juzObj.juz} (${qariLabel})`;
+  $('juz-audio-dl-wrap').classList.add('hidden');
 
   const list = $('modal-level-list');
   list.innerHTML = '';
@@ -998,6 +1339,7 @@ async function startGame(pageNum, juzObj = null) {
   const targetJuz = juzObj || findJuzByPage(pageNum);
   GameSession.juzObj = targetJuz;
   GameSession.pageNum = pageNum;
+  GameSession.pageData = null;
   GameSession.mode = AppState.mode;
   GameSession.level = AppState.level;
   GameSession.slots = [];
@@ -1017,6 +1359,8 @@ async function startGame(pageNum, juzObj = null) {
   $('game-progress-fill').style.width = '0%';
   $('hint-count').textContent = '3';
   $('btn-use-hint').disabled = false;
+  $('btn-dl-page-audio').textContent = '⬇️ Audio Hal';
+  $('btn-dl-page-audio').disabled = true;
 
   $('mushaf-surah-banner').textContent = 'جاري التحميل...';
   $('mushaf-basmalah').classList.add('hidden');
@@ -1025,7 +1369,7 @@ async function startGame(pageNum, juzObj = null) {
   $('mushaf-lines').innerHTML = `
     <div class="loading-state" dir="ltr">
       <div class="spinner"></div>
-      <div>Mengunduh Halaman ${pageNum}...</div>
+      <div>Menyiapkan Halaman ${pageNum}...</div>
     </div>
   `;
   $('word-choices').innerHTML = '';
@@ -1038,6 +1382,8 @@ async function startGame(pageNum, juzObj = null) {
     $('game-surah-arabic').textContent = pageData.surahShortArabic || pageData.surahArabic;
     $('mushaf-surah-banner').textContent = pageData.surahArabic;
     $('mushaf-basmalah').classList.toggle('hidden', !pageData.showBasmalah);
+    $('btn-dl-page-audio').disabled = false;
+    updatePageAudioButton();
 
     if (GameSession.mode === 'ayat') {
       setupAyatMode(pageData);
@@ -1397,7 +1743,7 @@ const PWAInstaller = {
     window.addEventListener('appinstalled', () => {
       this.deferredPrompt = null;
       if (banner) banner.classList.add('hidden');
-      showToast('AlQur\'an Play berhasil dipasang di layar utama! 🎉', 3200);
+      showToast('Al-Qur\'an Go berhasil dipasang di layar utama! 🎉', 3200);
     });
 
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -1425,16 +1771,66 @@ const PWAInstaller = {
 };
 
 /* =========================================================================
-   11. EVENT LISTENER & INISIALISASI
+   11. KONTROL UNDUHAN TEKS & AUDIO OFFLINE + EVENT LISTENER
    ========================================================================= */
-function setDownloadProgress(show, pct = 0, text = '') {
-  const wrap = $('dl-progress-wrap');
-  const txt = $('dl-progress-text');
-  const fill = $('dl-progress-fill');
+function setProgressBar(wrapId, textId, fillId, show, pct = 0, text = '') {
+  const wrap = $(wrapId);
+  const txt = $(textId);
+  const fill = $(fillId);
   if (!wrap) return;
   wrap.classList.toggle('hidden', !show);
   if (txt) txt.textContent = text;
   if (fill) fill.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+}
+
+async function runDownloadJuzAudio(juzNumber, uiTargets) {
+  const { wrapId, textId, fillId, disableBtns } = uiTargets;
+  disableBtns.forEach(b => { if (b) b.disabled = true; });
+  setProgressBar(wrapId, textId, fillId, true, 3, `Menyiapkan daftar ayat Juz ${juzNumber}...`);
+
+  try {
+    // 1. Pastikan halaman teks Juz tersebut tersedia agar tahu daftar ayatnya
+    const juzRes = await QuranLoader.downloadJuzOffline(juzNumber, (done, total) => {
+      const pct = Math.round((done / total) * 20);
+      setProgressBar(wrapId, textId, fillId, true, pct, `Menyiapkan halaman Juz ${juzNumber} (${done}/${total})...`);
+    });
+
+    const allVerses = [];
+    juzRes.pages.forEach(p => {
+      if (p && Array.isArray(p.verses)) p.verses.forEach(v => allVerses.push(v));
+    });
+
+    if (allVerses.length === 0) {
+      throw new Error('Tidak dapat mengambil daftar ayat. Cek koneksi internet.');
+    }
+
+    // 2. Unduh seluruh audio MP3 ke IndexedDB
+    const res = await MurottalPlayer.downloadVersesBatch(allVerses, (done, total, ok) => {
+      const pct = 20 + Math.round((done / total) * 80);
+      setProgressBar(wrapId, textId, fillId, true, pct, `Mengunduh audio Juz ${juzNumber}: ${ok}/${total} ayat...`);
+    });
+
+    updateHeaderUI();
+    renderJuzGrid();
+    updatePageAudioButton();
+
+    if (res.aborted) {
+      setProgressBar(wrapId, textId, fillId, true, Math.round((res.ok / res.total) * 100), `Dihentikan (${res.ok}/${res.total} ayat tersimpan).`);
+      showToast(`Unduhan dihentikan. ${res.ok} ayat sudah tersimpan offline.`);
+    } else if (res.ok === res.total) {
+      SoundFX.win();
+      setProgressBar(wrapId, textId, fillId, true, 100, `Selesai! ${res.ok} ayat audio Juz ${juzNumber} siap offline ⚡`);
+      showToast(`Audio Juz ${juzNumber} lengkap (${res.ok} ayat) siap diputar offline! 🎙️`, 3400);
+    } else {
+      setProgressBar(wrapId, textId, fillId, true, Math.round((res.ok / res.total) * 100), `Tersimpan ${res.ok}/${res.total} ayat. Coba lagi untuk melengkapi.`);
+      showToast(`Tersimpan ${res.ok} dari ${res.total} ayat audio Juz ${juzNumber}.`);
+    }
+  } catch (err) {
+    setProgressBar(wrapId, textId, fillId, true, 0, 'Gagal mengunduh audio. Periksa koneksi internet.');
+    showToast('Gagal mengunduh audio. Pastikan internet aktif.');
+  } finally {
+    disableBtns.forEach(b => { if (b) b.disabled = false; });
+  }
 }
 
 function bindEvents() {
@@ -1478,6 +1874,52 @@ function bindEvents() {
     showToast(AppState.autoMurottal ? 'Murottal otomatis per ayat aktif 🎙️' : 'Murottal otomatis dimatikan');
   });
 
+  // Tombol Unduh Audio Khusus Halaman yang Sedang Dibuka
+  $('btn-dl-page-audio').addEventListener('click', async () => {
+    if (!GameSession.pageData || !Array.isArray(GameSession.pageData.verses)) return;
+    const btn = $('btn-dl-page-audio');
+    btn.disabled = true;
+    SoundFX.tap();
+    btn.textContent = '⏳ 0%...';
+
+    const res = await MurottalPlayer.downloadVersesBatch(GameSession.pageData.verses, (done, total) => {
+      btn.textContent = `⏳ ${done}/${total}`;
+    });
+
+    btn.disabled = false;
+    updatePageAudioButton();
+    updateHeaderUI();
+
+    if (res.ok === res.total && res.total > 0) {
+      SoundFX.correct();
+      showToast(`Audio halaman ${GameSession.pageNum} (${res.ok} ayat) siap diputar offline! ⚡`, 3000);
+    } else {
+      showToast(`Tersimpan ${res.ok}/${res.total} audio ayat. Pastikan internet aktif.`);
+    }
+  });
+
+  // Tombol Unduh Audio di Modal Pilih Halaman per Juz
+  $('btn-dl-modal-juz-audio').addEventListener('click', () => {
+    if (!activeModalJuzObj) return;
+    SoundFX.tap();
+    runDownloadJuzAudio(activeModalJuzObj.juz, {
+      wrapId: 'juz-audio-dl-wrap',
+      textId: 'juz-audio-dl-text',
+      fillId: 'juz-audio-dl-fill',
+      disableBtns: [$('btn-dl-modal-juz-audio')]
+    });
+  });
+
+  $('btn-cancel-juz-audio').addEventListener('click', () => {
+    SoundFX.tap();
+    MurottalPlayer.cancelDownload();
+  });
+
+  $('btn-cancel-audio-dl').addEventListener('click', () => {
+    SoundFX.tap();
+    MurottalPlayer.cancelDownload();
+  });
+
   $('btn-murottal-replay').addEventListener('click', () => MurottalPlayer.replayLast());
   $('btn-murottal-stop').addEventListener('click', () => MurottalPlayer.stop());
 
@@ -1519,6 +1961,13 @@ function bindEvents() {
     });
   });
 
+  $('select-qari').addEventListener('change', () => {
+    AppState.qari = $('select-qari').value;
+    saveState();
+    updateHeaderUI();
+    updatePageAudioButton();
+  });
+
   $('btn-save-profile').addEventListener('click', () => {
     SoundFX.correct();
     const nameVal = $('input-username').value.trim();
@@ -1529,49 +1978,49 @@ function bindEvents() {
     AppState.qari = $('select-qari').value;
     saveState();
     updateHeaderUI();
+    updatePageAudioButton();
     closeModal('modal-profile');
     showToast(`Pengaturan ${AppState.username} tersimpan!`);
   });
 
-  // Unduh Lengkap 30 Juz (604 Halaman)
+  // Unduh Teks Lengkap 30 Juz
   $('btn-cache-all30').addEventListener('click', async () => {
     const btnAll = $('btn-cache-all30');
     const btnJ30 = $('btn-cache-juz30');
     btnAll.disabled = true;
     btnJ30.disabled = true;
     SoundFX.tap();
-    setDownloadProgress(true, 5, 'Menghubungi server Al-Qur\'an...');
+    setProgressBar('dl-progress-wrap', 'dl-progress-text', 'dl-progress-fill', true, 5, 'Menghubungi server Al-Qur\'an...');
 
     try {
       const count = await QuranLoader.downloadAll30Juz((pct, msg) => {
-        setDownloadProgress(true, pct, msg);
+        setProgressBar('dl-progress-wrap', 'dl-progress-text', 'dl-progress-fill', true, pct, msg);
       });
       SoundFX.win();
       updateHeaderUI();
       renderJuzGrid();
-      showToast(`Alhamdulillah! ${count} halaman (30 Juz) siap dimainkan offline! ⚡`, 3600);
+      showToast(`Alhamdulillah! ${count} halaman teks 30 Juz siap offline! ⚡`, 3600);
     } catch (err) {
-      console.error('Unduh 30 Juz gagal:', err);
-      setDownloadProgress(true, 0, 'Unduhan gagal. Pastikan internet stabil lalu coba lagi.');
-      showToast('Gagal mengunduh 30 Juz. Coba cek jaringan atau unduh Juz 30 dulu.', 3400);
+      setProgressBar('dl-progress-wrap', 'dl-progress-text', 'dl-progress-fill', true, 0, 'Unduhan gagal. Pastikan internet stabil lalu coba lagi.');
+      showToast('Gagal mengunduh teks 30 Juz. Cek jaringan internetmu.', 3400);
     } finally {
       btnAll.disabled = false;
       btnJ30.disabled = false;
     }
   });
 
-  // Unduh Juz 30 Saja (23 Halaman)
+  // Unduh Teks Juz 30 Saja
   $('btn-cache-juz30').addEventListener('click', async () => {
     const btnAll = $('btn-cache-all30');
     const btnJ30 = $('btn-cache-juz30');
     btnAll.disabled = true;
     btnJ30.disabled = true;
     SoundFX.tap();
-    setDownloadProgress(true, 4, 'Mengunduh Juz 30 (0/23)...');
+    setProgressBar('dl-progress-wrap', 'dl-progress-text', 'dl-progress-fill', true, 4, 'Mengunduh teks Juz 30 (0/23)...');
 
     const result = await QuranLoader.downloadJuzOffline(30, (done, total) => {
       const pct = Math.round((done / total) * 100);
-      setDownloadProgress(true, pct, `Mengunduh Juz 30 (${done}/${total} halaman)...`);
+      setProgressBar('dl-progress-wrap', 'dl-progress-text', 'dl-progress-fill', true, pct, `Mengunduh teks Juz 30 (${done}/${total} hal)...`);
     });
 
     btnAll.disabled = false;
@@ -1581,13 +2030,74 @@ function bindEvents() {
 
     if (result.ok === result.total) {
       SoundFX.win();
-      setDownloadProgress(true, 100, 'Juz 30 lengkap (23 halaman) tersimpan offline! ⚡');
-      showToast('Juz 30 lengkap siap dimainkan offline! ⚡', 3200);
+      setProgressBar('dl-progress-wrap', 'dl-progress-text', 'dl-progress-fill', true, 100, 'Teks Juz 30 lengkap (23 hal) tersimpan offline! ⚡');
+      showToast('Teks Juz 30 lengkap siap dimainkan offline! ⚡', 3200);
     } else {
-      showToast(`Tersimpan ${result.ok} dari ${result.total} halaman. Cek koneksi internetmu.`, 3200);
+      showToast(`Tersimpan ${result.ok} dari ${result.total} halaman. Cek internetmu.`, 3200);
     }
   });
 
+  // Unduh Audio Surah Utama (Hal 1, 582, 604 -> 38 Ayat)
+  $('btn-dl-starter-audio').addEventListener('click', async () => {
+    const btnStarter = $('btn-dl-starter-audio');
+    const btnJuz = $('btn-dl-juz-audio');
+    btnStarter.disabled = true;
+    btnJuz.disabled = true;
+    SoundFX.tap();
+
+    const starterVerses = [
+      ...BUILTIN_PAGES[1].verses,
+      ...BUILTIN_PAGES[582].verses,
+      ...BUILTIN_PAGES[604].verses
+    ];
+
+    setProgressBar('audio-dl-wrap', 'audio-dl-text', 'audio-dl-fill', true, 4, `Mengunduh audio surah utama (0/${starterVerses.length})...`);
+
+    const res = await MurottalPlayer.downloadVersesBatch(starterVerses, (done, total, ok) => {
+      const pct = Math.round((done / total) * 100);
+      setProgressBar('audio-dl-wrap', 'audio-dl-text', 'audio-dl-fill', true, pct, `Mengunduh audio utama: ${ok}/${total} ayat...`);
+    });
+
+    btnStarter.disabled = false;
+    btnJuz.disabled = false;
+    updateHeaderUI();
+    updatePageAudioButton();
+
+    if (res.aborted) {
+      showToast(`Unduhan dihentikan (${res.ok} ayat tersimpan).`);
+    } else if (res.ok === res.total) {
+      SoundFX.win();
+      setProgressBar('audio-dl-wrap', 'audio-dl-text', 'audio-dl-fill', true, 100, `Selesai! ${res.ok} ayat audio utama siap offline ⚡`);
+      showToast('Audio Al-Fatihah, An-Naba\', & 3 Qul siap diputar offline! 🎙️', 3400);
+    } else {
+      showToast(`Tersimpan ${res.ok} dari ${res.total} ayat audio. Cek koneksi internet.`);
+    }
+  });
+
+  // Unduh Audio Juz Terpilih di Modal Profil
+  $('btn-dl-juz-audio').addEventListener('click', () => {
+    const juzNum = Number($('select-audio-juz').value) || 30;
+    SoundFX.tap();
+    runDownloadJuzAudio(juzNum, {
+      wrapId: 'audio-dl-wrap',
+      textId: 'audio-dl-text',
+      fillId: 'audio-dl-fill',
+      disableBtns: [$('btn-dl-juz-audio'), $('btn-dl-starter-audio')]
+    });
+  });
+
+  // Hapus Cache Audio Murottal
+  $('btn-clear-audio').addEventListener('click', async () => {
+    if (confirm('Hapus semua file audio murottal offline di perangkat ini? (Bintang & teks 30 Juz tidak terhapus)')) {
+      MurottalPlayer.stop();
+      await AudioDB.clearAll();
+      updateHeaderUI();
+      updatePageAudioButton();
+      showToast('Cache audio murottal berhasil dibersihkan.');
+    }
+  });
+
+  // Reset Progres
   $('btn-reset-progress').addEventListener('click', () => {
     if (confirm('Yakin ingin menghapus semua bintang dan kartu hadiah yang sudah terkumpul?')) {
       AppState.progress = {};
@@ -1640,8 +2150,9 @@ window.startGame = startGame;
 document.addEventListener('DOMContentLoaded', async () => {
   MurottalPlayer.init();
   PWAInstaller.init();
+  populateAudioJuzSelect();
   bindEvents();
-  await QuranLoader.init();
+  await Promise.all([QuranLoader.init(), AudioDB.init()]);
   checkNewGiftUnlocks();
   updateHeaderUI();
   renderJuzGrid();

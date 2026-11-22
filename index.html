@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#73C2FB" />
-  <meta name="description" content="AlQur'an Play · 30 Juz - Game hafalan dan murojaah Al-Qur'an untuk anak lengkap dengan murottal per ayat." />
+  <meta name="description" content="Al-Qur'an Go · 30 Juz - Game hafalan dan murojaah Al-Qur'an untuk anak lengkap dengan murottal per ayat offline." />
 
   <!-- PWA & iOS Home Screen Meta -->
   <link rel="manifest" href="./manifest.json" />
@@ -12,10 +12,10 @@
   <link rel="apple-touch-icon" href="./icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="AlQur'an Play" />
+  <meta name="apple-mobile-web-app-title" content="Al-Qur'an Go" />
   <meta name="mobile-web-app-capable" content="yes" />
 
-  <title>AlQur'an Play · 30 Juz</title>
+  <title>Al-Qur'an Go · 30 Juz</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -165,7 +165,7 @@
     .brand-hero { text-align: center; margin: 14px auto 4px; position: relative; z-index: 2; }
     .brand-title {
       font-family: var(--font-display);
-      font-size: clamp(32px, 8vw, 46px);
+      font-size: clamp(34px, 8.5vw, 48px);
       font-weight: 700;
       line-height: 1.05;
       letter-spacing: -0.5px;
@@ -310,6 +310,7 @@
       font-size: 11px;
       font-weight: 800;
       cursor: pointer;
+      white-space: nowrap;
     }
 
     .juz-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -387,6 +388,8 @@
     .game-badge-btn:active { transform: scale(0.95); }
     .game-badge-btn.murottal-on { background: #DCFCE7; color: #166534; }
     .game-badge-btn.murottal-off { background: #F1F5F9; color: #64748B; }
+    .game-badge-btn.audio-dl-ready { background: #FEF3C7; color: #92400E; }
+    .game-badge-btn.audio-dl-done { background: #DCFCE7; color: #166534; }
 
     .game-progress-track { width: 100%; height: 7px; background: rgba(255, 255, 255, 0.55); border-radius: 999px; overflow: hidden; margin-top: 4px; }
     .game-progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #FFE033, #22C55E); border-radius: 999px; transition: width 0.25s ease; }
@@ -557,6 +560,40 @@
     .modal-title { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--navy); }
     .modal-body { padding: 16px; overflow-y: auto; flex: 1; }
 
+    .juz-audio-box {
+      background: #F0FDF4;
+      border: 2px solid #BBF7D0;
+      border-radius: 16px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .juz-audio-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12.5px;
+      font-weight: 800;
+      color: #166534;
+    }
+    .btn-mini-green {
+      border: none;
+      background: linear-gradient(180deg, #22C55E 0%, #16A34A 100%);
+      color: #FFFFFF;
+      border-radius: 10px;
+      padding: 6px 11px;
+      font-family: var(--font-ui);
+      font-size: 12px;
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
+      box-shadow: 0 2px 0 #15803D;
+    }
+    .btn-mini-green:disabled { opacity: 0.6; cursor: not-allowed; }
+
     .level-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
     .level-item { background: #F8FAFC; border: 2px solid #E2E8F0; border-radius: 16px; padding: 11px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; transition: all 0.14s ease; }
     .level-item:hover { border-color: var(--grass-main); background: #F0FDF4; }
@@ -596,6 +633,15 @@
     .btn-blue:active { transform: translateY(2px); box-shadow: 0 2px 0 #1E3A8A; }
     .btn-blue:disabled { opacity: 0.65; cursor: not-allowed; }
 
+    .btn-amber {
+      width: 100%; border: none; border-radius: 16px; padding: 11px 16px;
+      font-family: var(--font-ui); font-weight: 900; font-size: 14px; color: #78350F;
+      background: linear-gradient(180deg, #FDE047 0%, #F59E0B 100%);
+      box-shadow: 0 4px 0 #B45309; cursor: pointer;
+    }
+    .btn-amber:active { transform: translateY(2px); box-shadow: 0 2px 0 #B45309; }
+    .btn-amber:disabled { opacity: 0.65; cursor: not-allowed; }
+
     .btn-secondary {
       width: 100%; border: 2px solid #CBD5E1; border-radius: 16px; padding: 10px 16px;
       font-family: var(--font-ui); font-weight: 800; font-size: 14px; color: var(--navy);
@@ -605,6 +651,15 @@
 
     .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
 
+    .audio-juz-picker {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      margin-bottom: 8px;
+      align-items: stretch;
+    }
+    .audio-juz-picker .select-input { margin-bottom: 0; padding: 9px 12px; font-size: 13.5px; }
+
     .dl-progress-wrap {
       margin: 8px 0 10px;
       background: #F1F5F9;
@@ -612,7 +667,25 @@
       padding: 8px 10px;
       border: 1.5px solid #CBD5E1;
     }
-    .dl-progress-text { font-size: 12px; font-weight: 800; color: var(--navy); margin-bottom: 6px; }
+    .dl-progress-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .dl-progress-text { font-size: 12px; font-weight: 800; color: var(--navy); }
+    .dl-cancel-btn {
+      border: none;
+      background: #FEE2E2;
+      color: #B91C1C;
+      border-radius: 8px;
+      padding: 3px 8px;
+      font-family: var(--font-ui);
+      font-size: 11px;
+      font-weight: 900;
+      cursor: pointer;
+    }
     .dl-progress-track { width: 100%; height: 9px; background: #E2E8F0; border-radius: 999px; overflow: hidden; }
     .dl-progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #38BDF8, #22C55E); border-radius: 999px; transition: width 0.25s ease; }
 
@@ -683,7 +756,7 @@
 
         <div class="brand-hero">
           <div class="brand-title">
-            <span class="brand-sparkle">✨</span>AlQur'an Play<span class="brand-sparkle">✨</span>
+            <span class="brand-sparkle">✨</span>Al-Qur'an Go<span class="brand-sparkle">✨</span>
           </div>
           <div class="brand-ribbon-wrap">
             <span class="ribbon-star">⭐</span>
@@ -698,7 +771,7 @@
 
         <div class="pwa-install-banner hidden" id="pwa-install-banner">
           <div class="pwa-install-text">
-            📲 Pasang di Layar Utama HP
+            📲 Pasang Al-Qur'an Go di HP
             <small id="pwa-install-desc">Buka seperti aplikasi native & main lebih cepat offline!</small>
           </div>
           <button class="pwa-install-btn" id="btn-install-pwa" type="button">Install</button>
@@ -725,7 +798,7 @@
 
           <div class="progress-summary-bar">
             <span id="progress-label">Progres: Susun Ayat · Level 1</span>
-            <button class="offline-chip" id="btn-open-offline" type="button">📥 Status Offline</button>
+            <button class="offline-chip" id="btn-open-offline" type="button">📥 Offline: 3/604</button>
           </div>
         </div>
 
@@ -749,6 +822,9 @@
         <span class="game-badge" id="game-level-badge">⭐ Level 1</span>
         <button class="game-badge game-badge-btn murottal-on" id="btn-toggle-murottal" type="button">
           🎙️ Murottal: ON
+        </button>
+        <button class="game-badge game-badge-btn audio-dl-ready" id="btn-dl-page-audio" type="button" title="Unduh audio murottal halaman ini untuk diputar offline">
+          ⬇️ Audio Hal
         </button>
         <span class="game-badge" id="game-accuracy-badge">✨ 0 salah</span>
         <div class="game-progress-track">
@@ -798,9 +874,27 @@
         <button class="icon-circle-btn" data-close-modal="modal-juz" type="button">✕</button>
       </div>
       <div class="modal-body">
-        <p id="modal-juz-desc" style="font-size:13px; color:#475569; font-weight:700; margin-bottom:12px;">
+        <p id="modal-juz-desc" style="font-size:13px; color:#475569; font-weight:700; margin-bottom:10px;">
           Pilih halaman mushaf untuk mulai bermain. Tanda ⚡ berarti sudah siap dimainkan 100% offline.
         </p>
+
+        <!-- Unduh Audio Murottal Offline Khusus Juz Ini -->
+        <div class="juz-audio-box">
+          <div class="juz-audio-row">
+            <span id="modal-juz-audio-info">🎙️ Audio Murottal Juz ini</span>
+            <button class="btn-mini-green" id="btn-dl-modal-juz-audio" type="button">⬇️ Unduh Audio Juz</button>
+          </div>
+          <div class="dl-progress-wrap hidden" id="juz-audio-dl-wrap" style="margin:0;">
+            <div class="dl-progress-head">
+              <div class="dl-progress-text" id="juz-audio-dl-text">Mengunduh audio...</div>
+              <button class="dl-cancel-btn" id="btn-cancel-juz-audio" type="button">⏹ Batal</button>
+            </div>
+            <div class="dl-progress-track">
+              <div class="dl-progress-fill" id="juz-audio-dl-fill"></div>
+            </div>
+          </div>
+        </div>
+
         <div class="level-list" id="modal-level-list"></div>
       </div>
     </div>
@@ -890,23 +984,59 @@
 
         <hr style="border:none; border-top:2px dashed #E2E8F0; margin:12px 0;" />
 
-        <div style="font-size:13px; font-weight:800; color:#1E293B; margin-bottom:6px;">📦 Penyimpanan Offline 30 Juz (604 Halaman)</div>
+        <!-- Bagian Teks 30 Juz Offline -->
+        <div style="font-size:13px; font-weight:800; color:#1E293B; margin-bottom:6px;">📦 Teks & Arti 30 Juz Offline (604 Halaman)</div>
         <p id="offline-cache-info" style="font-size:12.5px; color:#64748B; font-weight:700; margin-bottom:10px;">
-          Memeriksa data offline tersimpan...
+          Memeriksa data teks offline...
         </p>
 
         <div class="dl-progress-wrap hidden" id="dl-progress-wrap">
-          <div class="dl-progress-text" id="dl-progress-text">Menyiapkan unduhan...</div>
+          <div class="dl-progress-head">
+            <div class="dl-progress-text" id="dl-progress-text">Menyiapkan unduhan...</div>
+          </div>
           <div class="dl-progress-track">
             <div class="dl-progress-fill" id="dl-progress-fill"></div>
           </div>
         </div>
 
         <button class="btn-blue" id="btn-cache-all30" type="button" style="margin-bottom:8px;">
-          📦 Unduh Lengkap 30 Juz (604 Halaman)
+          📦 Unduh Teks Lengkap 30 Juz (604 Hal)
         </button>
-        <button class="btn-secondary" id="btn-cache-juz30" type="button" style="margin-bottom:8px;">
-          📥 Unduh Juz 30 Saja (23 Halaman)
+        <button class="btn-secondary" id="btn-cache-juz30" type="button" style="margin-bottom:14px;">
+          📥 Unduh Teks Juz 30 Saja (23 Hal)
+        </button>
+
+        <hr style="border:none; border-top:2px dashed #E2E8F0; margin:12px 0;" />
+
+        <!-- Bagian Audio Murottal Offline -->
+        <div style="font-size:13px; font-weight:800; color:#1E293B; margin-bottom:6px;">🎙️ Audio Murottal Offline (Simpan di HP)</div>
+        <p id="offline-audio-info" style="font-size:12.5px; color:#64748B; font-weight:700; margin-bottom:10px;">
+          Memeriksa audio murottal offline...
+        </p>
+
+        <div class="dl-progress-wrap hidden" id="audio-dl-wrap">
+          <div class="dl-progress-head">
+            <div class="dl-progress-text" id="audio-dl-text">Mengunduh audio...</div>
+            <button class="dl-cancel-btn" id="btn-cancel-audio-dl" type="button">⏹ Batal</button>
+          </div>
+          <div class="dl-progress-track">
+            <div class="dl-progress-fill" id="audio-dl-fill"></div>
+          </div>
+        </div>
+
+        <button class="btn-amber" id="btn-dl-starter-audio" type="button" style="margin-bottom:8px;">
+          ⚡ Unduh Audio Surah Utama (38 Ayat)
+        </button>
+
+        <div class="audio-juz-picker">
+          <select id="select-audio-juz" class="select-input" aria-label="Pilih Juz Audio"></select>
+          <button class="btn-blue" id="btn-dl-juz-audio" type="button" style="width:auto; padding:0 14px; font-size:13px;">
+            ⬇️ Unduh Audio
+          </button>
+        </div>
+
+        <button class="btn-secondary" id="btn-clear-audio" type="button" style="margin-bottom:8px; color:#B45309; border-color:#FDE68A;">
+          🧹 Hapus Cache Audio Murottal
         </button>
         <button class="btn-secondary" id="btn-reset-progress" type="button" style="color:#DC2626; border-color:#FECACA;">
           🗑️ Reset Semua Progres Bintang
@@ -917,6 +1047,6 @@
 
   <div class="toast" id="toast"></div>
 
-  <script src="./app.js?v=3"></script>
+  <script src="./app.js?v=4"></script>
 </body>
 </html>
