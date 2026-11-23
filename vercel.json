@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/audio_proxy.php",
+      "destination": "/api/audio_proxy"
+    }
+  ]
+}

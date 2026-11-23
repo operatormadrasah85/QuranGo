@@ -1,6 +1,42 @@
 'use strict';
 
 /* =========================================================================
+   0. KONFIGURASI MODE DEMO TERBATAS (AKTIF HANYA JIKA window.DEMO_CONFIG.enabled = true)
+   ========================================================================= */
+const DEMO_CFG = Object.assign({
+  enabled: false,
+  allowedPages: [1, 582, 604],
+  maxVerses: 5,
+  buyUrl: './checkout.php',
+  waUrl: ''
+}, window.DEMO_CONFIG || {});
+
+function isPageAllowedInDemo(pageNum) {
+  if (!DEMO_CFG.enabled) return true;
+  return DEMO_CFG.allowedPages.indexOf(Number(pageNum)) !== -1;
+}
+
+function isJuzAllowedInDemo(juzObj) {
+  if (!DEMO_CFG.enabled) return true;
+  for (let p = juzObj.startPage; p <= juzObj.endPage; p++) {
+    if (isPageAllowedInDemo(p)) return true;
+  }
+  return false;
+}
+
+function showDemoLockModal(reasonText) {
+  const modal = document.getElementById('modal-demo-lock');
+  const desc = document.getElementById('demo-lock-desc');
+  if (desc && reasonText) desc.textContent = reasonText;
+  if (modal) {
+    modal.classList.remove('hidden');
+  } else {
+    showToast(reasonText || 'Fitur ini hanya tersedia di Versi Full 30 Juz!');
+  }
+}
+
+
+/* =========================================================================
    1. PETA 30 JUZ, 114 SURAH, & JUMLAH AYAT (HAFS 6236 AYAT)
    ========================================================================= */
 const JUZ_LIST = [
@@ -222,6 +258,8 @@ const STORAGE_KEY = 'alquran_go_state_v1';
 const DEFAULT_STATE = {
   username: 'Sahabat Quran',
   avatar: '🧒',
+  botColor: '#A855F7',
+  botHat: 'peci_putih',
   soundOn: true,
   autoMurottal: true,
   qari: 'Husary_128kbps',
@@ -551,9 +589,14 @@ const SoundFX = {
     this.playTone(740, 0.09, 'triangle', 0.12, 0);
     this.playTone(987, 0.14, 'triangle', 0.12, 0.08);
   },
+  combo() {
+    [659.25, 880.00, 1174.66].forEach((n, idx) => {
+      this.playTone(n, 0.16, 'triangle', 0.16, idx * 0.065);
+    });
+  },
   win() {
-    [523.25, 659.25, 783.99, 1046.50].forEach((n, idx) => {
-      this.playTone(n, 0.22, 'triangle', 0.16, idx * 0.1);
+    [523.25, 659.25, 783.99, 1046.50, 1318.51].forEach((n, idx) => {
+      this.playTone(n, 0.22, 'triangle', 0.16, idx * 0.09);
     });
   }
 };
@@ -1204,6 +1247,215 @@ const QuranLoader = {
   }
 };
 
+
+/* =========================================================================
+   8B. KOSTUM AVATAR BOT (WARNA & 6 TOPI) + MESIN EFEK VISUAL (COMBO & CONFETTI)
+   ========================================================================= */
+const BOT_COLORS = [
+  { id: '#22D3EE', name: 'Biru Langit' },
+  { id: '#22C55E', name: 'Hijau Segar' },
+  { id: '#FACC15', name: 'Kuning Cerah' },
+  { id: '#FB923C', name: 'Oranye' },
+  { id: '#A855F7', name: 'Ungu' },
+  { id: '#3B82F6', name: 'Biru Laut' },
+  { id: '#EF4444', name: 'Merah' },
+  { id: '#EC4899', name: 'Pink' }
+];
+
+const BOT_HATS = [
+  { id: 'none',       label: 'Tanpa' },
+  { id: 'peci_putih', label: 'Peci putih' },
+  { id: 'kopyah',     label: 'Kopyah' },
+  { id: 'short_cap',  label: 'Short cap' },
+  { id: 'koboi',      label: 'Koboi' },
+  { id: 'bucket',     label: 'Bucket' }
+];
+
+const BotAvatar = {
+  renderHatSVG(hatId) {
+    switch (hatId) {
+      case 'peci_putih':
+        return `
+          <path d="M26 32 C26 16 74 16 74 32 Z" fill="#FFFFFF" stroke="#1E293B" stroke-width="3.2" stroke-linejoin="round"/>
+          <path d="M27 30 Q50 25 73 30" fill="none" stroke="#CBD5E1" stroke-width="2.5"/>
+        `;
+      case 'kopyah':
+        return `
+          <rect x="26" y="14" width="48" height="20" rx="5" fill="#1E293B" stroke="#0F172A" stroke-width="3"/>
+          <line x1="28" y1="29" x2="72" y2="29" stroke="#475569" stroke-width="2.2"/>
+        `;
+      case 'short_cap':
+        return `
+          <path d="M25 32 C25 14 73 14 73 32 Z" fill="#EF4444" stroke="#142B5E" stroke-width="3"/>
+          <path d="M56 29 L84 31 C86 34 80 37 64 35 Z" fill="#DC2626" stroke="#142B5E" stroke-width="2.5" stroke-linejoin="round"/>
+          <circle cx="49" cy="14" r="3.5" fill="#FFE033" stroke="#142B5E" stroke-width="2"/>
+        `;
+      case 'koboi':
+        return `
+          <ellipse cx="50" cy="31" rx="37" ry="6.5" fill="#92400E" stroke="#142B5E" stroke-width="3"/>
+          <path d="M31 30 L36 13 Q50 18 64 13 L69 30 Z" fill="#B45309" stroke="#142B5E" stroke-width="3" stroke-linejoin="round"/>
+          <path d="M32 26 Q50 29 68 26" fill="none" stroke="#FACC15" stroke-width="3.2"/>
+        `;
+      case 'bucket':
+        return `
+          <path d="M22 33 Q50 26 78 33 L82 37 Q50 32 18 37 Z" fill="#0EA5E9" stroke="#142B5E" stroke-width="2.8" stroke-linejoin="round"/>
+          <path d="M30 31 L34 15 Q50 12 66 15 L70 31 Z" fill="#38BDF8" stroke="#142B5E" stroke-width="2.8" stroke-linejoin="round"/>
+          <line x1="32" y1="26" x2="68" y2="26" stroke="#FEF08A" stroke-width="3"/>
+        `;
+      default:
+        return `
+          <line x1="50" y1="27" x2="50" y2="16" stroke="#142B5E" stroke-width="3.2" stroke-linecap="round"/>
+          <circle cx="50" cy="13" r="4.5" fill="#FFE033" stroke="#142B5E" stroke-width="2.5"/>
+        `;
+    }
+  },
+
+  renderSVG(color = AppState.botColor || '#A855F7', hat = AppState.botHat || 'peci_putih') {
+    const safeColor = BOT_COLORS.some(c => c.id === color) ? color : '#A855F7';
+    return `
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <!-- Telinga Samping -->
+        <rect x="12" y="47" width="10" height="20" rx="5" fill="${safeColor}" stroke="#142B5E" stroke-width="3"/>
+        <rect x="78" y="47" width="10" height="20" rx="5" fill="${safeColor}" stroke="#142B5E" stroke-width="3"/>
+        <!-- Kepala / Badan Bot -->
+        <rect x="19" y="29" width="62" height="56" rx="22" fill="${safeColor}" stroke="#142B5E" stroke-width="3.5"/>
+        <!-- Kilau Atas -->
+        <path d="M29 36 Q50 32 71 36" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
+        <!-- Layar Wajah Gelap -->
+        <rect x="27" y="40" width="46" height="34" rx="14" fill="#142B5E"/>
+        <!-- Mata Bercahaya -->
+        <rect x="37" y="49" width="8" height="14" rx="4" fill="#E0F2FE"/>
+        <rect x="55" y="49" width="8" height="14" rx="4" fill="#E0F2FE"/>
+        <circle cx="39.5" cy="52" r="2" fill="#FFFFFF"/>
+        <circle cx="57.5" cy="52" r="2" fill="#FFFFFF"/>
+        <!-- Senyum Kecil -->
+        <path d="M45 66 Q50 70 55 66" fill="none" stroke="#7DD3FC" stroke-width="2.6" stroke-linecap="round"/>
+        <!-- Topi -->
+        ${this.renderHatSVG(hat)}
+      </svg>
+    `;
+  },
+
+  renderPickers(draftColor, draftHat, onSelect) {
+    const preview = document.getElementById('profile-bot-preview');
+    if (preview) preview.innerHTML = this.renderSVG(draftColor, draftHat);
+
+    const colorWrap = document.getElementById('bot-color-picker');
+    if (colorWrap) {
+      colorWrap.innerHTML = '';
+      BOT_COLORS.forEach(c => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'bot-color-dot' + (c.id === draftColor ? ' selected' : '');
+        btn.style.background = c.id;
+        btn.title = c.name;
+        btn.addEventListener('click', () => {
+          SoundFX.tap();
+          onSelect(c.id, draftHat);
+        });
+        colorWrap.appendChild(btn);
+      });
+    }
+
+    const hatWrap = document.getElementById('bot-hat-picker');
+    if (hatWrap) {
+      hatWrap.innerHTML = '';
+      BOT_HATS.forEach(h => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'bot-hat-opt' + (h.id === draftHat ? ' selected' : '');
+        btn.innerHTML = `${this.renderSVG(draftColor, h.id)}<span>${h.label}</span>`;
+        btn.addEventListener('click', () => {
+          SoundFX.tap();
+          onSelect(draftColor, h.id);
+        });
+        hatWrap.appendChild(btn);
+      });
+    }
+  }
+};
+
+const FXEngine = {
+  comboTimer: null,
+
+  getLayer() {
+    return document.getElementById('fx-layer');
+  },
+
+  floatScore(targetEl, points, isBonus = false) {
+    const layer = this.getLayer();
+    if (!layer || !targetEl) return;
+    const rect = targetEl.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return;
+
+    const div = document.createElement('div');
+    div.className = 'float-score' + (isBonus ? ' bonus' : '');
+    div.textContent = `+${points}`;
+    div.style.left = `${rect.left + rect.width / 2}px`;
+    div.style.top = `${Math.max(70, rect.top)}px`;
+    layer.appendChild(div);
+    setTimeout(() => div.remove(), 900);
+  },
+
+  sparkleBurst(targetEl) {
+    const layer = this.getLayer();
+    if (!layer || !targetEl) return;
+    const rect = targetEl.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return;
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const icons = ['✨', '⭐', '🌟', '💚', '✨', '⭐'];
+
+    icons.forEach((ic, idx) => {
+      const sp = document.createElement('div');
+      sp.className = 'fx-sparkle';
+      sp.textContent = ic;
+      const angle = (Math.PI * 2 * idx) / icons.length + (Math.random() * 0.4 - 0.2);
+      const dist = 26 + Math.random() * 24;
+      sp.style.left = `${cx}px`;
+      sp.style.top = `${cy}px`;
+      sp.style.setProperty('--dx', `${Math.round(Math.cos(angle) * dist)}px`);
+      sp.style.setProperty('--dy', `${Math.round(Math.sin(angle) * dist)}px`);
+      layer.appendChild(sp);
+      setTimeout(() => sp.remove(), 680);
+    });
+  },
+
+  showCombo(streak) {
+    const banner = document.getElementById('combo-banner');
+    if (!banner) return;
+    banner.textContent = `Combo x${streak}! 🔥`;
+    banner.classList.remove('show');
+    void banner.offsetWidth; // trigger reflow agar animasi ulang mulus
+    banner.classList.add('show');
+    SoundFX.combo();
+    clearTimeout(this.comboTimer);
+    this.comboTimer = setTimeout(() => {
+      banner.classList.remove('show');
+    }, 1150);
+  },
+
+  launchConfetti(count = 46) {
+    const layer = this.getLayer();
+    if (!layer) return;
+    const palette = ['#FFE138', '#5AC82A', '#38BDF8', '#F43F5E', '#A855F7', '#FB923C'];
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('div');
+      p.className = 'confetti-piece';
+      p.style.left = `${Math.random() * 100}vw`;
+      p.style.background = palette[i % palette.length];
+      p.style.width = `${7 + Math.random() * 6}px`;
+      p.style.height = `${11 + Math.random() * 9}px`;
+      const dur = 1.6 + Math.random() * 1.4;
+      const delay = Math.random() * 0.45;
+      p.style.animationDuration = `${dur}s`;
+      p.style.animationDelay = `${delay}s`;
+      layer.appendChild(p);
+      setTimeout(() => p.remove(), (dur + delay) * 1000 + 200);
+    }
+  }
+};
+
 /* =========================================================================
    9. MESIN PERMAINAN & KONTROL ANTARMUKA
    ========================================================================= */
@@ -1218,9 +1470,39 @@ const GameSession = {
   slots: [],
   currentIndex: 0,
   mistakes: 0,
+  score: 0,
+  streak: 0,
+  maxHearts: 5,
+  hearts: 5,
   hintsLeft: 3,
   isBusy: false
 };
+
+let draftBotColor = AppState.botColor || '#A855F7';
+let draftBotHat = AppState.botHat || 'peci_putih';
+
+function renderGameHearts(justLostIndex = -1) {
+  const wrap = $('game-hearts');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  for (let i = 0; i < GameSession.maxHearts; i++) {
+    const span = document.createElement('span');
+    const isAlive = i < GameSession.hearts;
+    span.className = 'heart-icon' + (isAlive ? '' : ' lost') + (i === justLostIndex ? ' just-lost' : '');
+    span.textContent = '❤️';
+    wrap.appendChild(span);
+  }
+}
+
+function updateScorePill(bump = false) {
+  const valEl = $('game-score-val');
+  const pill = $('game-score-pill');
+  if (valEl) valEl.textContent = GameSession.score;
+  if (pill && bump) {
+    pill.classList.add('bump');
+    setTimeout(() => pill.classList.remove('bump'), 200);
+  }
+}
 
 let activeModalJuzObj = null;
 let toastTimer = null;
@@ -1293,7 +1575,7 @@ function updatePageAudioButton() {
 }
 
 function updateHeaderUI() {
-  $('header-avatar').textContent = AppState.avatar;
+  $('header-avatar').innerHTML = BotAvatar.renderSVG(AppState.botColor, AppState.botHat);
   $('header-username').textContent = AppState.username;
   $('header-stars').textContent = getTotalStars();
   $('header-gifts-count').textContent = AppState.unlockedGifts.length;
@@ -1339,20 +1621,26 @@ function renderJuzGrid() {
       if (QuranLoader.isPageOffline(p)) { hasAnyOffline = true; break; }
     }
 
+    const juzAllowed = isJuzAllowedInDemo(juzObj);
     const card = document.createElement('button');
     card.type = 'button';
-    card.className = 'juz-card' + (hasAnyOffline ? ' has-offline' : '');
+    card.className = 'juz-card' + (hasAnyOffline && juzAllowed ? ' has-offline' : '') + (!juzAllowed ? ' demo-locked-card' : '');
     card.innerHTML = `
+      ${DEMO_CFG.enabled ? (juzAllowed ? '<span class="demo-free-tag">DEMO</span>' : '<span class="demo-lock-tag">🔒</span>') : ''}
       <div class="juz-num">${juzObj.juz}</div>
       <div class="juz-surah">${juzObj.surah}</div>
-      <div class="juz-progress-text">${doneCount}/${totalLevels} level</div>
+      <div class="juz-progress-text">${juzAllowed ? `${doneCount}/${totalLevels} level` : 'Versi Full'}</div>
       <div class="juz-mini-bar">
-        <div class="juz-mini-fill" style="width:${pct}%"></div>
+        <div class="juz-mini-fill" style="width:${juzAllowed ? pct : 0}%"></div>
       </div>
     `;
 
     card.addEventListener('click', () => {
       SoundFX.tap();
+      if (!juzAllowed) {
+        showDemoLockModal(`Juz ${juzObj.juz} (${juzObj.surah}) terkunci di Mode Demo. Buka Versi Full 30 Juz (604 halaman) sekali bayar tanpa langganan!`);
+        return;
+      }
       openJuzModal(juzObj);
     });
 
@@ -1395,21 +1683,27 @@ function openJuzModal(juzObj) {
     const subtitle = QuranLoader.getOfflineTitle(p) || `Halaman ${p}`;
     const starStr = stars > 0 ? '⭐'.repeat(stars) + '☆'.repeat(3 - stars) : '☆☆☆';
 
+    const pageAllowed = isPageAllowedInDemo(p);
     const item = document.createElement('button');
     item.type = 'button';
-    item.className = 'level-item' + (isOffline ? ' offline-ready' : '');
+    item.className = 'level-item' + (isOffline && pageAllowed ? ' offline-ready' : '') + (!pageAllowed ? ' demo-locked-item' : '');
     item.innerHTML = `
       <div class="level-item-top">
         <span>Level ${levelNum}</span>
-        <span>${isOffline ? '⚡' : '☁️'} Hal ${p}</span>
+        <span>${pageAllowed ? (isOffline ? '⚡' : '☁️') : '🔒'} Hal ${p}</span>
       </div>
       <div class="level-item-name">${subtitle}</div>
-      <div class="level-stars">${starStr}</div>
+      <div class="level-stars">${pageAllowed ? starStr : '<span style="font-size:11px;color:#B45309;font-weight:900;">Buka di Full 30 Juz</span>'}</div>
     `;
 
     const targetPage = p;
     item.addEventListener('click', () => {
       SoundFX.tap();
+      if (!pageAllowed) {
+        closeModal('modal-juz');
+        showDemoLockModal(`Halaman ${targetPage} terkunci pada Mode Demo. Miliki Versi Full untuk membuka seluruh 604 halaman 30 Juz!`);
+        return;
+      }
       closeModal('modal-juz');
       startGame(targetPage, juzObj);
     });
@@ -1450,6 +1744,10 @@ function findJuzByPage(pageNum) {
 }
 
 async function startGame(pageNum, juzObj = null) {
+  if (DEMO_CFG.enabled && !isPageAllowedInDemo(pageNum)) {
+    showDemoLockModal(`Halaman ${pageNum} hanya tersedia di Versi Full 30 Juz. Yuk buka akses penuh sekarang!`);
+    return;
+  }
   MurottalPlayer.stop();
 
   const targetJuz = juzObj || findJuzByPage(pageNum);
@@ -1461,6 +1759,9 @@ async function startGame(pageNum, juzObj = null) {
   GameSession.slots = [];
   GameSession.currentIndex = 0;
   GameSession.mistakes = 0;
+  GameSession.score = 0;
+  GameSession.streak = 0;
+  GameSession.hearts = GameSession.maxHearts;
   GameSession.hintsLeft = 3;
   GameSession.isBusy = false;
 
@@ -1468,17 +1769,26 @@ async function startGame(pageNum, juzObj = null) {
   const mushafScroll = $('mushaf-outer');
   if (mushafScroll) mushafScroll.scrollTop = 0;
   updateMurottalBadge();
+  renderGameHearts();
+  updateScorePill(false);
+
+  const prevBtn = $('btn-prev-page');
+  const nextBtn = $('btn-next-page');
+  if (prevBtn) prevBtn.disabled = pageNum <= 1;
+  if (nextBtn) nextBtn.disabled = pageNum >= 604;
 
   $('game-surah-latin').textContent = `Juz ${targetJuz.juz} · hal ${pageNum}`;
   $('game-surah-arabic').textContent = '...';
   $('game-mode-badge').textContent = GameSession.mode === 'ayat' ? '🎯 Tebak Ayat' : '📖 Tebak Arti';
   $('game-level-badge').textContent = GameSession.level === 1 ? '⭐ Level 1' : '⭐⭐ Level 2';
-  $('game-accuracy-badge').textContent = '✨ 0 salah';
+  $('game-accuracy-badge').textContent = '🔥 Combo 0';
   $('game-progress-fill').style.width = '0%';
   $('hint-count').textContent = '3';
   $('btn-use-hint').disabled = false;
   $('btn-dl-page-audio').textContent = '⬇️ Audio Hal';
   $('btn-dl-page-audio').disabled = true;
+  const footerEl = $('mushaf-page-footer');
+  if (footerEl) footerEl.textContent = `۞ ${toArabicDigits(pageNum)} ۞`;
 
   $('mushaf-surah-banner').textContent = 'جاري التحميل...';
   $('mushaf-basmalah').classList.add('hidden');
@@ -1493,7 +1803,14 @@ async function startGame(pageNum, juzObj = null) {
   $('word-choices').innerHTML = '';
 
   try {
-    const pageData = await QuranLoader.loadPage(pageNum);
+    const rawPageData = await QuranLoader.loadPage(pageNum);
+    let pageData = rawPageData;
+    if (DEMO_CFG.enabled && DEMO_CFG.maxVerses > 0 && rawPageData.verses.length > DEMO_CFG.maxVerses) {
+      pageData = Object.assign({}, rawPageData, {
+        verses: rawPageData.verses.slice(0, DEMO_CFG.maxVerses),
+        isDemoTrimmed: true
+      });
+    }
     GameSession.pageData = pageData;
 
     $('game-surah-latin').textContent = `${pageData.surahLatin} · hal ${pageData.page}`;
@@ -1721,6 +2038,20 @@ function handleChoiceTap(btn, chosenText) {
     );
     targetSlot.el.classList.add(GameSession.mode === 'ayat' ? 'solved' : 'slot-solved');
 
+    // Hitung skor, combo, & picu efek visual (+10/+20, sparkle, Combo banner!)
+    GameSession.streak++;
+    const gained = GameSession.streak >= 3 ? 20 : 10;
+    GameSession.score += gained;
+    updateScorePill(true);
+    $('game-accuracy-badge').textContent = `🔥 Combo ${GameSession.streak}`;
+
+    FXEngine.floatScore(targetSlot.el, gained, gained >= 20);
+    FXEngine.sparkleBurst(targetSlot.el);
+
+    if (GameSession.streak === 3 || (GameSession.streak >= 5 && GameSession.streak % 5 === 0)) {
+      FXEngine.showCombo(GameSession.streak);
+    }
+
     const completedVerseIndex = targetSlot.verseIndex;
     GameSession.currentIndex++;
 
@@ -1740,13 +2071,24 @@ function handleChoiceTap(btn, chosenText) {
   } else {
     GameSession.isBusy = true;
     GameSession.mistakes++;
-    $('game-accuracy-badge').textContent = `✨ ${GameSession.mistakes} salah`;
+    GameSession.streak = 0;
+    $('game-accuracy-badge').textContent = `🔥 Combo 0`;
+
+    const lostIdx = GameSession.hearts - 1;
+    if (GameSession.hearts > 0) GameSession.hearts--;
+    renderGameHearts(lostIdx);
+
     SoundFX.wrong();
     btn.classList.add('wrong-shake');
     setTimeout(() => {
       btn.classList.remove('wrong-shake');
+      if (GameSession.hearts <= 0) {
+        GameSession.hearts = GameSession.maxHearts;
+        renderGameHearts();
+        showToast('Nyawa hati diisi ulang! Tetap semangat ya 💚', 2200);
+      }
       GameSession.isBusy = false;
-    }, 360);
+    }, 380);
   }
 }
 
@@ -1799,14 +2141,29 @@ function finishLevel() {
   updateHeaderUI();
   renderJuzGrid();
 
-  $('win-stars').textContent = '⭐'.repeat(earnedStars) + '☆'.repeat(3 - earnedStars);
-  $('win-heading').textContent =
-    earnedStars === 3 ? 'MasyaAllah, Sempurna!' :
-    earnedStars === 2 ? 'Hebat Sekali!' : 'Alhamdulillah, Selesai!';
+  const winBotEl = $('win-bot-avatar');
+  if (winBotEl) winBotEl.innerHTML = BotAvatar.renderSVG(AppState.botColor, AppState.botHat);
+
+  const starsWrap = $('win-stars');
+  if (starsWrap) {
+    starsWrap.innerHTML = '';
+    for (let i = 0; i < 3; i++) {
+      const sp = document.createElement('span');
+      sp.className = 'win-star-item';
+      sp.style.animationDelay = `${i * 0.14}s`;
+      sp.textContent = i < earnedStars ? '⭐' : '☆';
+      if (i >= earnedStars) sp.style.opacity = '0.35';
+      starsWrap.appendChild(sp);
+    }
+  }
+
+  $('win-heading').textContent = `Hebat, ${AppState.username}!`;
 
   const surahLabel = GameSession.pageData ? GameSession.pageData.surahLatin : `Halaman ${GameSession.pageNum}`;
   $('win-sub').textContent =
-    `Halaman ${GameSession.pageNum} (${surahLabel}) selesai dengan ${GameSession.mistakes} kali salah.`;
+    `${surahLabel} · hal ${GameSession.pageNum} · Skor ${GameSession.score} ⭐`;
+
+  FXEngine.launchConfetti(54);
 
   const rewardBanner = $('win-reward-banner');
   if (newlyUnlocked.length > 0) {
@@ -1818,9 +2175,17 @@ function finishLevel() {
   }
 
   const nextBtn = $('btn-win-next');
-  if (GameSession.pageNum < 604) {
+  if (DEMO_CFG.enabled && GameSession.pageData && GameSession.pageData.isDemoTrimmed) {
+    $('win-sub').textContent =
+      `MasyaAllah! Kamu menuntaskan ${DEMO_CFG.maxVerses} ayat demo dari ${surahLabel}. Buka Versi Full untuk memainkan seluruh ayat 30 Juz!`;
     nextBtn.classList.remove('hidden');
-    nextBtn.textContent = `▶ Lanjut Halaman ${GameSession.pageNum + 1}`;
+    nextBtn.textContent = '🔓 Buka Versi Full 30 Juz';
+  } else if (DEMO_CFG.enabled && !isPageAllowedInDemo(GameSession.pageNum + 1)) {
+    nextBtn.classList.remove('hidden');
+    nextBtn.textContent = '🔓 Buka Versi Full 30 Juz';
+  } else if (GameSession.pageNum < 604) {
+    nextBtn.classList.remove('hidden');
+    nextBtn.textContent = `Lanjut ›`;
   } else {
     nextBtn.classList.add('hidden');
   }
@@ -2018,6 +2383,11 @@ function bindEvents() {
 
   // Tombol Unduh Audio di Modal Pilih Halaman per Juz
   $('btn-dl-modal-juz-audio').addEventListener('click', () => {
+    if (DEMO_CFG.enabled) {
+      closeModal('modal-juz');
+      showDemoLockModal('Unduh Audio Murottal Offline per Juz hanya tersedia di Versi Full 30 Juz.');
+      return;
+    }
     if (!activeModalJuzObj) return;
     SoundFX.tap();
     runDownloadJuzAudio(activeModalJuzObj.juz, {
@@ -2057,27 +2427,56 @@ function bindEvents() {
     openModal('modal-gifts');
   });
 
+  // Navigasi halaman sebelumnya / berikutnya & Reset surah langsung di layar permainan
+  $('btn-prev-page').addEventListener('click', () => {
+    if (GameSession.pageNum <= 1) return;
+    SoundFX.tap();
+    startGame(GameSession.pageNum - 1);
+  });
+
+  $('btn-next-page').addEventListener('click', () => {
+    if (GameSession.pageNum >= 604) return;
+    SoundFX.tap();
+    startGame(GameSession.pageNum + 1);
+  });
+
+  $('btn-reset-surah').addEventListener('click', () => {
+    SoundFX.tap();
+    startGame(GameSession.pageNum, GameSession.juzObj);
+    showToast('Halaman direset, semangat mulai lagi! ✨', 1800);
+  });
+
+  const resetAllProgressAction = () => {
+    if (confirm('Yakin ingin menghapus semua bintang dan kartu hadiah yang sudah terkumpul?')) {
+      AppState.progress = {};
+      AppState.unlockedGifts = [];
+      saveState();
+      updateHeaderUI();
+      renderJuzGrid();
+      closeModal('modal-profile');
+      showToast('Semua progres berhasil direset.');
+    }
+  };
+  const btnHomeReset = $('btn-home-reset');
+  if (btnHomeReset) btnHomeReset.addEventListener('click', resetAllProgressAction);
+
+  const refreshBotCustomizer = (c, h) => {
+    draftBotColor = c;
+    draftBotHat = h;
+    BotAvatar.renderPickers(draftBotColor, draftBotHat, refreshBotCustomizer);
+  };
+
   const openProfileModal = () => {
     SoundFX.tap();
     $('input-username').value = AppState.username;
     $('chk-auto-murottal').checked = !!AppState.autoMurottal;
     $('select-qari').value = AppState.qari || 'Husary_128kbps';
-    document.querySelectorAll('.avatar-opt').forEach(opt => {
-      opt.classList.toggle('selected', opt.dataset.avatar === AppState.avatar);
-    });
+    refreshBotCustomizer(AppState.botColor || '#A855F7', AppState.botHat || 'peci_putih');
     updateHeaderUI();
     openModal('modal-profile');
   };
   $('btn-open-profile').addEventListener('click', openProfileModal);
   $('btn-open-offline').addEventListener('click', openProfileModal);
-
-  document.querySelectorAll('.avatar-opt').forEach(opt => {
-    opt.addEventListener('click', () => {
-      SoundFX.tap();
-      document.querySelectorAll('.avatar-opt').forEach(o => o.classList.remove('selected'));
-      opt.classList.add('selected');
-    });
-  });
 
   $('select-qari').addEventListener('change', () => {
     AppState.qari = $('select-qari').value;
@@ -2089,20 +2488,25 @@ function bindEvents() {
   $('btn-save-profile').addEventListener('click', () => {
     SoundFX.correct();
     const nameVal = $('input-username').value.trim();
-    const selectedAvatar = document.querySelector('.avatar-opt.selected');
     AppState.username = nameVal || 'Sahabat Quran';
-    if (selectedAvatar) AppState.avatar = selectedAvatar.dataset.avatar;
+    AppState.botColor = draftBotColor;
+    AppState.botHat = draftBotHat;
     AppState.autoMurottal = $('chk-auto-murottal').checked;
     AppState.qari = $('select-qari').value;
     saveState();
     updateHeaderUI();
     updatePageAudioButton();
     closeModal('modal-profile');
-    showToast(`Pengaturan ${AppState.username} tersimpan!`);
+    showToast(`Profil & Kostum Bot ${AppState.username} tersimpan! 🤖`);
   });
 
   // Unduh Teks Lengkap 30 Juz
   $('btn-cache-all30').addEventListener('click', async () => {
+    if (DEMO_CFG.enabled) {
+      closeModal('modal-profile');
+      showDemoLockModal('Fitur Unduh Lengkap 30 Juz Offline hanya tersedia di Versi Full.');
+      return;
+    }
     const btnAll = $('btn-cache-all30');
     const btnJ30 = $('btn-cache-juz30');
     btnAll.disabled = true;
@@ -2194,6 +2598,11 @@ function bindEvents() {
 
   // Unduh Audio Juz Terpilih di Modal Profil
   $('btn-dl-juz-audio').addEventListener('click', () => {
+    if (DEMO_CFG.enabled) {
+      closeModal('modal-profile');
+      showDemoLockModal('Unduh Audio Murottal Offline per Juz hanya tersedia di Versi Full 30 Juz.');
+      return;
+    }
     const juzNum = Number($('select-audio-juz').value) || 30;
     SoundFX.tap();
     runDownloadJuzAudio(juzNum, {
@@ -2231,6 +2640,10 @@ function bindEvents() {
   $('btn-win-next').addEventListener('click', () => {
     SoundFX.tap();
     closeModal('modal-win');
+    if (DEMO_CFG.enabled && ((GameSession.pageData && GameSession.pageData.isDemoTrimmed) || !isPageAllowedInDemo(GameSession.pageNum + 1))) {
+      window.location.href = DEMO_CFG.buyUrl || './checkout.php';
+      return;
+    }
     startGame(GameSession.pageNum + 1);
   });
 
