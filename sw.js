@@ -1,4 +1,4 @@
-const SHELL_CACHE = 'alquran-go-shell-v9';
+const SHELL_CACHE = 'alquran-go-shell-v10';
 const FONT_CACHE = 'alquran-go-fonts-v5';
 const AUDIO_CACHE = 'alquran-go-audio-v5';
 

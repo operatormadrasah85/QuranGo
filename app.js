@@ -574,8 +574,10 @@ const PageDB = {
 const AudioDB = {
   dbName: 'alquran_go_audio_db',
   storeName: 'audio',
+  juzMetaKey: 'alquran_go_juz_audio_done_v1',
   db: null,
   keysSet: new Set(), // Cache cepat di RAM: `${qari}_${surah}_${ayah}`
+  completedJuzMap: {}, // { [qariKey]: [1, 30, ...] }
 
   makeKey(qari, surahNum, ayahNum) {
     return `${qari}_${Number(surahNum)}_${Number(ayahNum)}`;
@@ -597,7 +599,59 @@ const AudioDB = {
     });
   },
 
+  loadCompletedJuzMap() {
+    try {
+      const raw = localStorage.getItem(this.juzMetaKey);
+      const parsed = raw ? JSON.parse(raw) : {};
+      this.completedJuzMap = parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (e) {
+      this.completedJuzMap = {};
+    }
+  },
+
+  saveCompletedJuzMap() {
+    try {
+      localStorage.setItem(this.juzMetaKey, JSON.stringify(this.completedJuzMap));
+    } catch (e) {}
+  },
+
+  isJuzDownloaded(qari, juzNum) {
+    const q = qari || 'Husary_128kbps';
+    const list = this.completedJuzMap[q];
+    if (!Array.isArray(list) || !list.includes(Number(juzNum))) return false;
+    return this.countByQari(q) > 0;
+  },
+
+  markJuzDownloaded(qari, juzNum) {
+    const q = qari || 'Husary_128kbps';
+    const num = Number(juzNum);
+    if (!Array.isArray(this.completedJuzMap[q])) this.completedJuzMap[q] = [];
+    if (!this.completedJuzMap[q].includes(num)) {
+      this.completedJuzMap[q].push(num);
+      this.saveCompletedJuzMap();
+    }
+  },
+
+  async verifyJuzDownloaded(juzObj, qari) {
+    const q = qari || 'Husary_128kbps';
+    if (!juzObj) return false;
+    if (this.isJuzDownloaded(q, juzObj.juz)) return true;
+    if (this.countByQari(q) === 0) return false;
+
+    for (let p = juzObj.startPage; p <= juzObj.endPage; p++) {
+      if (!QuranLoader.isPageOffline(p)) return false;
+      const pageData = BUILTIN_PAGES[p] || (await PageDB.getPage(p));
+      if (!pageData || !Array.isArray(pageData.verses) || pageData.verses.length === 0) return false;
+      for (const v of pageData.verses) {
+        if (!this.has(q, v.surahNumber, v.numberInSurah)) return false;
+      }
+    }
+    this.markJuzDownloaded(q, juzObj.juz);
+    return true;
+  },
+
   async init() {
+    this.loadCompletedJuzMap();
     const db = await this.open();
     if (!db) return;
     return new Promise((resolve) => {
@@ -605,6 +659,10 @@ const AudioDB = {
       const req = tx.objectStore(this.storeName).getAllKeys();
       req.onsuccess = () => {
         this.keysSet = new Set(req.result || []);
+        if (this.keysSet.size === 0 && Object.keys(this.completedJuzMap).length > 0) {
+          this.completedJuzMap = {};
+          this.saveCompletedJuzMap();
+        }
         resolve();
       };
       req.onerror = () => resolve();
@@ -692,6 +750,8 @@ const AudioDB = {
       tx.objectStore(this.storeName).clear();
       tx.oncomplete = () => {
         this.keysSet.clear();
+        this.completedJuzMap = {};
+        try { localStorage.removeItem(this.juzMetaKey); } catch (e) {}
         resolve(true);
       };
       tx.onerror = () => resolve(false);
@@ -1821,14 +1881,62 @@ function renderJuzGrid() {
 function populateAudioJuzSelect() {
   const sel = $('select-audio-juz');
   if (!sel) return;
+  const prevVal = Number(sel.value) || 30;
+  const qariKey = AppState.qari || 'Husary_128kbps';
   sel.innerHTML = '';
   JUZ_LIST.forEach(j => {
     const opt = document.createElement('option');
     opt.value = j.juz;
-    opt.textContent = `Juz ${j.juz} · ${j.surah} (Hal ${j.startPage}-${j.endPage})`;
-    if (j.juz === 30) opt.selected = true;
+    const isDone = AudioDB.isJuzDownloaded(qariKey, j.juz);
+    opt.textContent = `Juz ${j.juz} · ${j.surah} (Hal ${j.startPage}-${j.endPage})${isDone ? ' · ✅ Terunduh' : ''}`;
+    if (j.juz === prevVal) opt.selected = true;
     sel.appendChild(opt);
   });
+  updateProfileAudioJuzUI();
+}
+
+function updateProfileAudioJuzUI() {
+  const sel = $('select-audio-juz');
+  const btn = $('btn-dl-juz-audio');
+  if (!sel || !btn) return;
+  const juzNum = Number(sel.value) || 30;
+  const qariKey = AppState.qari || 'Husary_128kbps';
+  const isDone = AudioDB.isJuzDownloaded(qariKey, juzNum);
+  btn.classList.toggle('hidden', isDone);
+  if (!isDone) {
+    const juzObj = JUZ_LIST.find(j => j.juz === juzNum);
+    if (juzObj) {
+      AudioDB.verifyJuzDownloaded(juzObj, qariKey).then(verified => {
+        if (verified && Number(sel.value) === juzNum && (AppState.qari || 'Husary_128kbps') === qariKey) {
+          populateAudioJuzSelect();
+        }
+      });
+    }
+  }
+}
+
+function updateModalJuzAudioUI(juzObj) {
+  if (!juzObj) return;
+  const qariKey = AppState.qari || 'Husary_128kbps';
+  const qariLabel = MurottalPlayer.getQariCfg(qariKey).label;
+  const infoEl = $('modal-juz-audio-info');
+  const dlBtn = $('btn-dl-modal-juz-audio');
+  const isDone = AudioDB.isJuzDownloaded(qariKey, juzObj.juz);
+
+  if (isDone) {
+    if (infoEl) infoEl.textContent = `✅ Audio Juz ${juzObj.juz} (${qariLabel}) siap offline ⚡`;
+    if (dlBtn) dlBtn.classList.add('hidden');
+  } else {
+    if (infoEl) infoEl.textContent = `🎙️ Audio Juz ${juzObj.juz} (${qariLabel})`;
+    if (dlBtn) dlBtn.classList.remove('hidden');
+    // Verifikasi otomatis di latar belakang (jika audio juz sudah lengkap tersimpan di IndexedDB)
+    AudioDB.verifyJuzDownloaded(juzObj, qariKey).then(verified => {
+      if (verified && activeModalJuzObj && activeModalJuzObj.juz === juzObj.juz && (AppState.qari || 'Husary_128kbps') === qariKey) {
+        updateModalJuzAudioUI(juzObj);
+        populateAudioJuzSelect();
+      }
+    });
+  }
 }
 
 function openJuzModal(juzObj) {
@@ -1839,9 +1947,8 @@ function openJuzModal(juzObj) {
   $('modal-juz-desc').textContent =
     `Mode aktif: ${modeName} · ${levelName}. Pilih halaman mushaf di bawah ini (⚡ = teks siap offline).`;
 
-  const qariLabel = MurottalPlayer.getQariCfg(AppState.qari).label;
-  $('modal-juz-audio-info').textContent = `🎙️ Audio Juz ${juzObj.juz} (${qariLabel})`;
   $('juz-audio-dl-wrap').classList.add('hidden');
+  updateModalJuzAudioUI(juzObj);
 
   const list = $('modal-level-list');
   list.innerHTML = '';
@@ -2470,9 +2577,17 @@ async function runDownloadJuzAudio(juzNumber, uiTargets) {
     if (res.aborted) {
       setProgressBar(wrapId, textId, fillId, true, Math.round((res.ok / res.total) * 100), `Dihentikan (${res.ok}/${res.total} ayat tersimpan).`);
       showToast(`Unduhan dihentikan. ${res.ok} ayat sudah tersimpan offline.`);
-    } else if (res.ok === res.total) {
+    } else if (res.ok === res.total && res.total > 0) {
       SoundFX.win();
+      AudioDB.markJuzDownloaded(AppState.qari || 'Husary_128kbps', juzNumber);
+      populateAudioJuzSelect();
+      if (activeModalJuzObj && activeModalJuzObj.juz === Number(juzNumber)) {
+        updateModalJuzAudioUI(activeModalJuzObj);
+      }
       setProgressBar(wrapId, textId, fillId, true, 100, `Selesai! ${res.ok} ayat audio Juz ${juzNumber} siap offline ⚡`);
+      setTimeout(() => {
+        if (wrapId === 'juz-audio-dl-wrap') setProgressBar(wrapId, textId, fillId, false);
+      }, 1800);
       showToast(`Audio Juz ${juzNumber} lengkap (${res.ok} ayat) siap diputar offline! 🎙️`, 3400);
     } else {
       setProgressBar(wrapId, textId, fillId, true, Math.round((res.ok / res.total) * 100), `Tersimpan ${res.ok}/${res.total} ayat. Coba lagi untuk melengkapi.`);
@@ -2823,6 +2938,7 @@ function bindEvents() {
     $('select-qari').value = AppState.qari || 'Husary_128kbps';
     refreshBotCustomizer(AppState.botColor || '#A855F7', AppState.botHat || 'peci_putih');
     updateHeaderUI();
+    populateAudioJuzSelect();
     openModal('modal-profile');
   };
   $('btn-open-profile').addEventListener('click', openProfileModal);
@@ -2833,7 +2949,13 @@ function bindEvents() {
     saveState();
     updateHeaderUI();
     updatePageAudioButton();
+    populateAudioJuzSelect();
   });
+
+  const selAudioJuz = $('select-audio-juz');
+  if (selAudioJuz) {
+    selAudioJuz.addEventListener('change', () => updateProfileAudioJuzUI());
+  }
 
   $('btn-save-profile').addEventListener('click', () => {
     SoundFX.correct();
@@ -2970,6 +3092,8 @@ function bindEvents() {
       await AudioDB.clearAll();
       updateHeaderUI();
       updatePageAudioButton();
+      populateAudioJuzSelect();
+      if (activeModalJuzObj) updateModalJuzAudioUI(activeModalJuzObj);
       showToast('Cache audio murottal berhasil dibersihkan.');
     }
   });
@@ -3034,6 +3158,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   populateAudioJuzSelect();
   bindEvents();
   await Promise.all([QuranLoader.init(), AudioDB.init(), MurottalPlayer.checkProxy()]);
+  populateAudioJuzSelect();
 
   const activeEmail = AccountStore.getActiveEmail();
   if (activeEmail) {
