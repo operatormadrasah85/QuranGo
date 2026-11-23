@@ -793,6 +793,24 @@ const SoundFX = {
   },
 
   tap() { this.playTone(520, 0.06, 'triangle', 0.1); },
+  shoot() {
+    if (!AppState.soundOn) return;
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(340, now);
+    osc.frequency.exponentialRampToValueAtTime(860, now + 0.085);
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.exponentialRampToValueAtTime(0.13, now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.12);
+  },
   correct() {
     this.playTone(587.33, 0.11, 'sine', 0.14, 0);
     this.playTone(880.00, 0.16, 'sine', 0.15, 0.07);
@@ -1608,6 +1626,116 @@ const FXEngine = {
     return document.getElementById('fx-layer');
   },
 
+  clearLayer() {
+    const layer = this.getLayer();
+    if (layer) layer.innerHTML = '';
+  },
+
+  impactRing(targetEl) {
+    const layer = this.getLayer();
+    if (!layer || !targetEl) return;
+    const rect = targetEl.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return;
+    const ring = document.createElement('div');
+    ring.className = 'shot-impact-ring';
+    ring.style.left = `${rect.left + rect.width / 2}px`;
+    ring.style.top = `${rect.top + rect.height / 2}px`;
+    layer.appendChild(ring);
+    setTimeout(() => ring.remove(), 360);
+  },
+
+  launchWordShot(fromRect, targetEl, text, isArabic, onLand) {
+    const layer = this.getLayer();
+    if (!layer || !fromRect || !targetEl) {
+      if (typeof onLand === 'function') onLand();
+      return;
+    }
+
+    const toRect = targetEl.getBoundingClientRect();
+    if ((fromRect.width === 0 && fromRect.height === 0) || (toRect.width === 0 && toRect.height === 0)) {
+      if (typeof onLand === 'function') onLand();
+      return;
+    }
+
+    const fromX = fromRect.left + fromRect.width / 2;
+    const fromY = fromRect.top + fromRect.height / 2;
+    const toX = toRect.left + toRect.width / 2;
+    const toY = toRect.top + toRect.height / 2;
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const dist = Math.hypot(dx, dy);
+
+    // 1. Efek letupan kecil di titik tombol (muzzle ring)
+    const muzzle = document.createElement('div');
+    muzzle.className = 'shot-muzzle-ring';
+    muzzle.style.left = `${fromX}px`;
+    muzzle.style.top = `${fromY}px`;
+    layer.appendChild(muzzle);
+    setTimeout(() => muzzle.remove(), 300);
+
+    // 2. Garis sinar tembakan tipis menuju slot target
+    if (dist > 28) {
+      const beam = document.createElement('div');
+      beam.className = 'shot-beam';
+      beam.style.left = `${fromX}px`;
+      beam.style.top = `${fromY}px`;
+      beam.style.width = `${dist}px`;
+      beam.style.transform = `translateY(-50%) rotate(${Math.atan2(dy, dx)}rad)`;
+      layer.appendChild(beam);
+      setTimeout(() => beam.remove(), 300);
+    }
+
+    // 3. Jejak partikel komet di sepanjang lintasan
+    [0.2, 0.42, 0.64, 0.84].forEach((t, idx) => {
+      setTimeout(() => {
+        const dot = document.createElement('div');
+        dot.className = 'shot-trail-dot';
+        dot.style.left = `${fromX + dx * t}px`;
+        dot.style.top = `${fromY + dy * t - Math.sin(t * Math.PI) * 14}px`;
+        layer.appendChild(dot);
+        setTimeout(() => dot.remove(), 340);
+      }, idx * 42);
+    });
+
+    // 4. Proyektil kata yang melesat cepat ke dalam mushaf
+    const shot = document.createElement('div');
+    shot.className = 'flying-word-shot ' + (isArabic ? 'arabic-shot' : 'meaning-shot');
+    shot.textContent = text;
+    shot.style.left = `${fromX}px`;
+    shot.style.top = `${fromY}px`;
+    shot.style.transform = 'translate(-50%, -50%)';
+    layer.appendChild(shot);
+
+    const duration = Math.min(310, Math.max(210, Math.round(170 + dist * 0.24)));
+    let landed = false;
+    const finishShot = () => {
+      if (landed) return;
+      landed = true;
+      shot.remove();
+      if (typeof onLand === 'function') onLand();
+    };
+
+    if (typeof shot.animate === 'function') {
+      const anim = shot.animate(
+        [
+          { transform: 'translate(-50%, -50%) scale(1.1)', opacity: 1 },
+          { transform: `translate(calc(-50% + ${dx * 0.56}px), calc(-50% + ${dy * 0.56 - 16}px)) scale(1.03)`, opacity: 1, offset: 0.55 },
+          { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.86)`, opacity: 0.96 }
+        ],
+        {
+          duration,
+          easing: 'cubic-bezier(0.2, 0.85, 0.32, 1.04)',
+          fill: 'forwards'
+        }
+      );
+      anim.onfinish = finishShot;
+      anim.oncancel = finishShot;
+      setTimeout(finishShot, duration + 90);
+    } else {
+      setTimeout(finishShot, 60);
+    }
+  },
+
   floatScore(targetEl, points, isBonus = false) {
     const layer = this.getLayer();
     if (!layer || !targetEl) return;
@@ -1701,7 +1829,8 @@ const GameSession = {
   maxHearts: 5,
   hearts: 5,
   hintsLeft: 3,
-  isBusy: false
+  isBusy: false,
+  runToken: 0
 };
 
 let draftBotColor = AppState.botColor || '#A855F7';
@@ -2041,6 +2170,8 @@ async function startGame(pageNum, juzObj = null) {
   GameSession.hearts = GameSession.maxHearts;
   GameSession.hintsLeft = 3;
   GameSession.isBusy = false;
+  GameSession.runToken++;
+  FXEngine.clearLayer();
 
   showScreen('screen-game');
   const mushafScroll = $('mushaf-outer');
@@ -2241,9 +2372,19 @@ function activateCurrentSlot() {
 
   const currentSlot = GameSession.slots[idx];
 
+  const scrollIntoMushafIfNeeded = (el) => {
+    const scroller = $('mushaf-outer');
+    if (!scroller || !el) return;
+    const sRect = scroller.getBoundingClientRect();
+    const eRect = el.getBoundingClientRect();
+    if (eRect.top < sRect.top + 48 || eRect.bottom > sRect.bottom - 56) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
   if (GameSession.mode === 'ayat') {
     currentSlot.el.classList.add('active-slot');
-    currentSlot.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    scrollIntoMushafIfNeeded(currentSlot.el);
   } else {
     document.querySelectorAll('.arti-verse-card').forEach((card, vIdx) => {
       card.classList.toggle('active-verse', vIdx === currentSlot.verseIndex);
@@ -2251,7 +2392,7 @@ function activateCurrentSlot() {
     });
     currentSlot.el.classList.add('slot-active');
     const activeCard = $(`arti-verse-card-${currentSlot.verseIndex}`);
-    if (activeCard) activeCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (activeCard) scrollIntoMushafIfNeeded(activeCard);
   }
 
   renderChoiceTiles(currentSlot);
@@ -2308,43 +2449,78 @@ function handleChoiceTap(btn, chosenText) {
   if (!targetSlot) return;
 
   if (chosenText === targetSlot.text) {
-    btn.classList.add('correct-flash');
-    targetSlot.el.classList.remove(
-      'level1-hidden', 'level2-hidden', 'active-slot', 'hint-peek',
-      'slot-level1', 'slot-level2', 'slot-active'
-    );
-    targetSlot.el.classList.add(GameSession.mode === 'ayat' ? 'solved' : 'slot-solved');
+    const shotToken = GameSession.runToken;
+    const fromRect = btn.getBoundingClientRect();
+    const isArabicMode = GameSession.mode === 'ayat';
 
-    // Hitung skor, combo, & picu efek visual (+10/+20, sparkle, Combo banner!)
+    btn.classList.add('correct-flash', 'shot-fired');
+    targetSlot.el.classList.remove('active-slot', 'slot-active');
+    targetSlot.el.classList.add('shot-incoming');
+
+    // Hitung progres, streak, dan siapkan suara tembakan
     GameSession.streak++;
-    const gained = GameSession.streak >= 3 ? 20 : 10;
-    GameSession.score += gained;
-    updateScorePill(true);
-    $('game-accuracy-badge').textContent = `🔥 Combo ${GameSession.streak}`;
-
-    FXEngine.floatScore(targetSlot.el, gained, gained >= 20);
-    FXEngine.sparkleBurst(targetSlot.el);
-
-    if (GameSession.streak === 3 || (GameSession.streak >= 5 && GameSession.streak % 5 === 0)) {
-      FXEngine.showCombo(GameSession.streak);
-    }
+    const currentStreak = GameSession.streak;
+    const gained = currentStreak >= 3 ? 20 : 10;
+    $('game-accuracy-badge').textContent = `🔥 Combo ${currentStreak}`;
 
     const completedVerseIndex = targetSlot.verseIndex;
     GameSession.currentIndex++;
 
     const nextSlot = GameSession.slots[GameSession.currentIndex];
+    const isLastSlot = !nextSlot;
     const verseJustFinished = !nextSlot || nextSlot.verseIndex !== completedVerseIndex;
 
-    if (verseJustFinished) {
-      SoundFX.verseComplete();
-      if (AppState.autoMurottal && AppState.soundOn) {
-        MurottalPlayer.playVerse(completedVerseIndex, false);
-      }
-    } else {
-      SoundFX.correct();
-    }
+    // Suara luncur tembakan langsung berbunyi saat tombol diketuk
+    SoundFX.shoot();
 
-    activateCurrentSlot();
+    // Tembakkan proyektil kata dari tombol bawah menuju slot target di mushaf
+    FXEngine.launchWordShot(fromRect, targetSlot.el, chosenText, isArabicMode, () => {
+      if (shotToken !== GameSession.runToken) return;
+
+      targetSlot.el.classList.remove(
+        'level1-hidden', 'level2-hidden', 'active-slot', 'hint-peek',
+        'slot-level1', 'slot-level2', 'slot-active', 'shot-incoming'
+      );
+      targetSlot.el.classList.add(isArabicMode ? 'solved' : 'slot-solved');
+
+      GameSession.score += gained;
+      updateScorePill(true);
+
+      FXEngine.impactRing(targetSlot.el);
+      FXEngine.floatScore(targetSlot.el, gained, gained >= 20);
+      FXEngine.sparkleBurst(targetSlot.el);
+
+      if (currentStreak === 3 || (currentStreak >= 5 && currentStreak % 5 === 0)) {
+        FXEngine.showCombo(currentStreak);
+      }
+
+      if (verseJustFinished) {
+        SoundFX.verseComplete();
+        if (AppState.autoMurottal && AppState.soundOn) {
+          MurottalPlayer.playVerse(completedVerseIndex, false);
+        }
+      } else {
+        SoundFX.correct();
+      }
+
+      if (isLastSlot) {
+        $('game-progress-fill').style.width = '100%';
+        finishLevel();
+      }
+    });
+
+    // Langsung siapkan kata berikutnya setelah jeda super singkat agar bisa rapid-tap tanpa lag
+    if (!isLastSlot) {
+      GameSession.isBusy = true;
+      setTimeout(() => {
+        if (shotToken !== GameSession.runToken) return;
+        GameSession.isBusy = false;
+        activateCurrentSlot();
+      }, 65);
+    } else {
+      GameSession.isBusy = true;
+      $('word-choices').innerHTML = '';
+    }
   } else {
     GameSession.isBusy = true;
     GameSession.mistakes++;
@@ -2878,6 +3054,8 @@ function bindEvents() {
 
   $('btn-game-back').addEventListener('click', () => {
     SoundFX.tap();
+    GameSession.runToken++;
+    FXEngine.clearLayer();
     MurottalPlayer.stop();
     showScreen('screen-home');
     updateHeaderUI();
