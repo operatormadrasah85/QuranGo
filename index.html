@@ -1624,6 +1624,269 @@
     @media (min-width: 700px) {
       .game-badges-strip { justify-content: center; }
     }
+
+    /* ================= LAYAR LOGIN ("MASUK DULU YUK") — GAYA REFERENSI VIDEO ================= */
+    #screen-login {
+      justify-content: center;
+      align-items: center;
+      padding: max(20px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom));
+      min-height: 100vh;
+      min-height: 100dvh;
+    }
+
+    .login-container {
+      width: 100%;
+      max-width: 420px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .login-hero-logo {
+      text-align: center;
+      margin-bottom: 18px;
+    }
+
+    .login-card {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.97);
+      border: 3px solid #FFFFFF;
+      border-radius: 28px;
+      padding: 24px 22px 22px;
+      box-shadow: 0 18px 42px rgba(20, 43, 94, 0.16), 0 6px 0 rgba(20, 43, 94, 0.08);
+      animation: popInModal 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .login-heading {
+      font-family: var(--font-display);
+      font-size: 25px;
+      font-weight: 700;
+      color: var(--navy);
+      text-align: center;
+      margin-bottom: 18px;
+    }
+
+    .login-field {
+      margin-bottom: 14px;
+    }
+    .login-field label {
+      display: block;
+      font-size: 13.5px;
+      font-weight: 900;
+      color: var(--navy);
+      margin-bottom: 6px;
+    }
+    .login-input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .login-input {
+      width: 100%;
+      padding: 12px 15px;
+      border-radius: 15px;
+      border: 2px solid #D8E2EE;
+      background: #F8FBFF;
+      font-family: var(--font-ui);
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--navy);
+      outline: none;
+      transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+    }
+    .login-input::placeholder {
+      color: #94A3B8;
+      font-weight: 700;
+    }
+    .login-input:focus {
+      border-color: #5AC82A;
+      background: #FFFFFF;
+      box-shadow: 0 0 0 4px rgba(90, 200, 42, 0.16);
+    }
+    .login-input.with-eye {
+      padding-right: 46px;
+    }
+    .eye-toggle-btn {
+      position: absolute;
+      right: 10px;
+      border: none;
+      background: transparent;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px 6px;
+      color: #64748B;
+    }
+
+    .login-error {
+      background: #FEF2F2;
+      border: 1.5px solid #FECACA;
+      color: #B91C1C;
+      border-radius: 12px;
+      padding: 9px 12px;
+      font-size: 12.5px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .btn-login-submit {
+      width: 100%;
+      border: 2px solid #A4EE7C;
+      border-radius: 999px;
+      padding: 13px 20px;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 19px;
+      letter-spacing: 0.3px;
+      color: #FFFFFF;
+      background: linear-gradient(180deg, #8AE834 0%, #5AC82A 55%, #44A71A 100%);
+      box-shadow: 0 5px 0 #2F7A10, 0 10px 20px rgba(68, 167, 26, 0.28);
+      cursor: pointer;
+      margin-top: 6px;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .btn-login-submit:active {
+      transform: translateY(3px);
+      box-shadow: 0 2px 0 #2F7A10;
+    }
+
+    .login-helper {
+      margin-top: 14px;
+      text-align: center;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #64748B;
+      font-weight: 700;
+    }
+
+    .saved-accounts-box {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1.5px dashed #E2E8F0;
+      text-align: center;
+    }
+    .saved-accounts-label {
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #64748B;
+      margin-bottom: 8px;
+    }
+    .saved-accounts-list {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+    }
+    .saved-acc-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #F0FDF4;
+      border: 1.5px solid #BBF7D0;
+      color: var(--navy);
+      border-radius: 999px;
+      padding: 4px 10px 4px 5px;
+      font-family: var(--font-ui);
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .saved-acc-chip svg {
+      width: 22px;
+      height: 22px;
+      display: block;
+    }
+
+    .demo-quick-guest {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      background: #EFF6FF;
+      border: 1.5px solid #BFDBFE;
+      color: #1D4ED8;
+      border-radius: 12px;
+      padding: 8px 12px;
+      font-family: var(--font-ui);
+      font-size: 12.5px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    /* ================= LAYAR ONBOARDING NAMA & KOSTUM BOT (00:10-00:16 VIDEO) ================= */
+    #screen-onboarding {
+      padding: max(12px, env(safe-area-inset-top)) 14px max(28px, env(safe-area-inset-bottom));
+      min-height: 100vh;
+      min-height: 100dvh;
+    }
+
+    .onboard-card {
+      background: rgba(255, 255, 255, 0.97);
+      border: 3px solid #FFFFFF;
+      border-radius: 26px;
+      padding: 18px 16px 20px;
+      box-shadow: 0 16px 38px rgba(20, 43, 94, 0.14);
+      margin-top: 8px;
+    }
+
+    .btn-pick-juz-cta {
+      width: 100%;
+      margin-top: 14px;
+      border: 2.5px solid #FFFFFF;
+      border-radius: 999px;
+      padding: 13px 20px;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 20px;
+      color: #FFFFFF;
+      background: linear-gradient(180deg, #8AE834 0%, #5AC82A 55%, #44A71A 100%);
+      box-shadow: 0 5px 0 #2F7A10, 0 10px 22px rgba(68, 167, 26, 0.28);
+      cursor: pointer;
+    }
+    .btn-pick-juz-cta:active {
+      transform: translateY(3px);
+      box-shadow: 0 2px 0 #2F7A10;
+    }
+
+    /* ================= TOMBOL KELUAR AKUN DI BERANDA (PERSIS VIDEO 00:06-00:08) ================= */
+    .btn-logout-home {
+      border: 2px solid #FFFFFF;
+      border-radius: 999px;
+      padding: 9px 26px;
+      font-family: var(--font-ui);
+      font-weight: 900;
+      font-size: 13.5px;
+      color: #1E3A2F;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 4px 0 rgba(20, 65, 10, 0.18), 0 6px 14px rgba(20, 43, 94, 0.1);
+      cursor: pointer;
+      transition: transform 0.12s ease;
+    }
+    .btn-logout-home:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 rgba(20, 65, 10, 0.18);
+    }
+
+    .account-email-badge {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: #EFF6FF;
+      border: 1.5px solid #BFDBFE;
+      border-radius: 12px;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      font-size: 12.5px;
+      font-weight: 800;
+      color: #1E3A8A;
+    }
+    .account-email-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
   </style>
 </head>
 <body>
@@ -1669,8 +1932,103 @@
 
   <div class="app-shell">
 
+    <!-- ==================== LAYAR 0: LOGIN AKUN ("MASUK DULU YUK") ==================== -->
+    <section id="screen-login" class="screen active">
+
+      <div class="login-container">
+        <div class="login-hero-logo">
+          <div class="brand-title">
+            <span class="brand-sparkle">✨</span>Al-Qur'an Go<span class="brand-sparkle">✨</span>
+          </div>
+          <div class="brand-ribbon-wrap">
+            <span class="ribbon-star">⭐</span>
+            <div class="brand-ribbon">Benerin ayat yang suka ketuker</div>
+            <span class="ribbon-star">⭐</span>
+          </div>
+        </div>
+
+        <div class="login-card">
+          <h1 class="login-heading">Masuk dulu yuk</h1>
+
+          <div class="login-error hidden" id="login-error"></div>
+
+          <form id="login-form" novalidate>
+            <div class="login-field">
+              <label for="login-email">Username (email)</label>
+              <div class="login-input-wrap">
+                <input type="email" id="login-email" class="login-input" autocomplete="email" placeholder="contoh: aisyah@mail.com" required />
+              </div>
+            </div>
+
+            <div class="login-field">
+              <label for="login-password">Password (nomor HP)</label>
+              <div class="login-input-wrap">
+                <input type="password" id="login-password" class="login-input with-eye" autocomplete="current-password" placeholder="08xxxxxxxxxxx" required />
+                <button type="button" class="eye-toggle-btn" id="btn-toggle-login-eye" aria-label="Tampilkan Password">👁️</button>
+              </div>
+            </div>
+
+            <button type="submit" class="btn-login-submit" id="btn-login-submit">Masuk</button>
+          </form>
+
+          <div class="login-helper">
+            Belum punya akun? Langsung isi saja, akun otomatis dibuat.<br />
+            Progres main disimpan di browser perangkat ini.
+          </div>
+
+          <div class="saved-accounts-box hidden" id="saved-accounts-box">
+            <div class="saved-accounts-label">Akun yang pernah masuk di perangkat ini:</div>
+            <div class="saved-accounts-list" id="saved-accounts-list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== LAYAR 0B: KOSTUM BOT & NAMA PEMAIN BARU ==================== -->
+    <section id="screen-onboarding" class="screen">
+      <div class="top-bar" style="margin-bottom:8px;">
+        <button class="icon-circle-btn" id="btn-onboard-back" type="button" aria-label="Keluar">⬅</button>
+        <div class="top-stats">
+          <div class="pill-btn coin-pill" style="cursor:default;">
+            <span class="gold-coin-dot">⭐</span>
+            <span id="onboard-stars">0</span>
+          </div>
+          <button class="icon-circle-btn" id="btn-onboard-sound" type="button" aria-label="Suara">🔊</button>
+        </div>
+      </div>
+
+      <div class="brand-hero" style="margin-top:4px;">
+        <div class="brand-title" style="font-size:clamp(30px, 7.8vw, 42px);">
+          <span class="brand-sparkle">✨</span>Al-Qur'an Go<span class="brand-sparkle">✨</span>
+        </div>
+        <div class="brand-ribbon-wrap">
+          <span class="ribbon-star">⭐</span>
+          <div class="brand-ribbon">Benerin ayat yang suka ketuker</div>
+          <span class="ribbon-star">⭐</span>
+        </div>
+      </div>
+
+      <div class="onboard-card">
+        <div class="bot-preview-stage">
+          <div class="bot-preview-circle" id="onboard-bot-preview"></div>
+          <div style="flex:1; min-width:0;">
+            <label class="form-label" for="onboard-username" style="margin-bottom:4px;">Siapa namamu?</label>
+            <input type="text" id="onboard-username" class="text-input" maxlength="20" placeholder="Misal: Budi / Aisyah" style="margin-bottom:0;" />
+          </div>
+        </div>
+
+        <label class="form-label">Warna bot</label>
+        <div class="bot-color-row" id="onboard-color-picker"></div>
+
+        <label class="form-label">Topi</label>
+        <div class="bot-hat-grid" id="onboard-hat-picker" style="margin-bottom:4px;"></div>
+      </div>
+
+      <button type="button" class="btn-pick-juz-cta" id="btn-onboard-start">Pilih Juz ›</button>
+    </section>
+
     <!-- ==================== LAYAR 1: BERANDA & PILIH 30 JUZ ==================== -->
-    <section id="screen-home" class="screen active">
+    <section id="screen-home" class="screen">
 
       <header class="home-sky">
         <div class="top-bar">
@@ -1740,6 +2098,7 @@
 
         <div class="home-bottom-actions">
           <button type="button" class="btn-reset-home" id="btn-home-reset">↺ Reset semua progres</button>
+          <button type="button" class="btn-logout-home" id="btn-home-logout">Keluar akun</button>
         </div>
       </main>
     </section>
@@ -1902,6 +2261,12 @@
         <button class="icon-circle-btn" data-close-modal="modal-profile" type="button">✕</button>
       </div>
       <div class="modal-body">
+        <!-- Info Akun Aktif -->
+        <div class="account-email-badge">
+          <span class="account-email-text" id="profile-account-email">📧 akun@email.com</span>
+          <span style="font-size:11px; color:#16A34A; flex-shrink:0;">● Aktif</span>
+        </div>
+
         <!-- Pratinjau Bot + Nama -->
         <div class="bot-preview-stage">
           <div class="bot-preview-circle" id="profile-bot-preview"></div>
@@ -1987,8 +2352,11 @@
         <button class="btn-secondary" id="btn-clear-audio" type="button" style="margin-bottom:8px; color:#B45309; border-color:#FDE68A;">
           🧹 Hapus Cache Audio Murottal
         </button>
-        <button class="btn-secondary" id="btn-reset-progress" type="button" style="color:#DC2626; border-color:#FECACA;">
+        <button class="btn-secondary" id="btn-reset-progress" type="button" style="margin-bottom:8px; color:#DC2626; border-color:#FECACA;">
           🗑️ Reset Semua Progres Bintang
+        </button>
+        <button class="btn-secondary" id="btn-profile-logout" type="button" style="color:#142B5E; border-color:#94A3B8; background:#F1F5F9;">
+          🚪 Keluar Akun
         </button>
       </div>
     </div>
@@ -1999,6 +2367,6 @@
   <div class="toast" id="toast"></div>
 
 
-  <script src="./app.js?v=8"></script>
+  <script src="./app.js?v=9"></script>
 </body>
 </html>

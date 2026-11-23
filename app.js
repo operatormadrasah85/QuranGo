@@ -251,9 +251,11 @@ const BUILTIN_PAGES = {
 };
 
 /* =========================================================================
-   4. STATE APLIKASI & PENYIMPANAN PROGRES (TETAP MENJAGA PROGRES LAMA)
+   4. MANAJEMEN AKUN LOKAL (LOGIN/REGISTER OTOMATIS + KELUAR AKUN) & STATE
    ========================================================================= */
-const STORAGE_KEY = 'alquran_go_state_v1';
+const LEGACY_STATE_KEY = 'alquran_go_state_v1';
+const ACCOUNTS_KEY = 'alquran_go_accounts_v1';
+const ACTIVE_ACCOUNT_KEY = 'alquran_go_active_account_v1';
 
 const DEFAULT_STATE = {
   username: 'Sahabat Quran',
@@ -269,30 +271,189 @@ const DEFAULT_STATE = {
   unlockedGifts: []
 };
 
-const AppState = loadState();
-
-function loadState() {
-  try {
-    const raw =
-      localStorage.getItem(STORAGE_KEY) ||
-      localStorage.getItem('alquran_play_state_v2') ||
-      localStorage.getItem('alquran_play_state_v1');
-    if (!raw) return { ...DEFAULT_STATE, progress: {}, unlockedGifts: [] };
-    const parsed = JSON.parse(raw);
-    return {
-      ...DEFAULT_STATE,
-      ...parsed,
-      progress: parsed.progress || {},
-      unlockedGifts: Array.isArray(parsed.unlockedGifts) ? parsed.unlockedGifts : []
-    };
-  } catch (e) {
-    return { ...DEFAULT_STATE, progress: {}, unlockedGifts: [] };
-  }
+function createFreshState(name = 'Sahabat Quran') {
+  return {
+    ...DEFAULT_STATE,
+    username: name,
+    progress: {},
+    unlockedGifts: []
+  };
 }
 
+function normalizeEmail(raw) {
+  return String(raw || '').trim().toLowerCase();
+}
+
+function normalizePhonePass(raw) {
+  return String(raw || '').trim().replace(/[\s\-()]/g, '');
+}
+
+function deriveNameFromEmail(email) {
+  const base = String(email || '').split('@')[0].replace(/[._-]+/g, ' ').trim();
+  if (!base) return 'Sahabat Quran';
+  return base.split(' ').filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ').slice(0, 20);
+}
+
+const AccountStore = {
+  activeEmail: null,
+
+  loadAll() {
+    try {
+      const raw = localStorage.getItem(ACCOUNTS_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (e) {
+      return {};
+    }
+  },
+
+  saveAll(map) {
+    try {
+      localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(map));
+    } catch (e) {
+      console.warn('Gagal menyimpan daftar akun:', e);
+    }
+  },
+
+  getActiveEmail() {
+    try {
+      const saved = localStorage.getItem(ACTIVE_ACCOUNT_KEY);
+      if (!saved) return null;
+      const accounts = this.loadAll();
+      return accounts[saved] ? saved : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  setActiveEmail(email) {
+    this.activeEmail = email;
+    try {
+      if (email) localStorage.setItem(ACTIVE_ACCOUNT_KEY, email);
+      else localStorage.removeItem(ACTIVE_ACCOUNT_KEY);
+    } catch (e) {}
+  },
+
+  readLegacyStateOnce() {
+    try {
+      const raw =
+        localStorage.getItem(LEGACY_STATE_KEY) ||
+        localStorage.getItem('alquran_play_state_v2') ||
+        localStorage.getItem('alquran_play_state_v1');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return {
+        ...DEFAULT_STATE,
+        ...parsed,
+        progress: parsed.progress || {},
+        unlockedGifts: Array.isArray(parsed.unlockedGifts) ? parsed.unlockedGifts : []
+      };
+    } catch (e) {
+      return null;
+    }
+  },
+
+  applyAccountToAppState(acc) {
+    const src = (acc && acc.state) ? acc.state : createFreshState();
+    const merged = {
+      ...DEFAULT_STATE,
+      ...src,
+      progress: src.progress ? { ...src.progress } : {},
+      unlockedGifts: Array.isArray(src.unlockedGifts) ? [...src.unlockedGifts] : []
+    };
+    Object.keys(AppState).forEach(k => delete AppState[k]);
+    Object.assign(AppState, merged);
+  },
+
+  loginOrCreate(rawEmail, rawPassword) {
+    const email = normalizeEmail(rawEmail);
+    const pass = normalizePhonePass(rawPassword);
+
+    if (!email || email.length < 3) {
+      return { ok: false, error: 'Masukkan Username (email) terlebih dahulu ya.' };
+    }
+    if (!pass || pass.length < 4) {
+      return { ok: false, error: 'Masukkan Password (nomor HP) minimal 4 karakter.' };
+    }
+
+    const accounts = this.loadAll();
+    const existing = accounts[email];
+
+    if (existing) {
+      if (existing.password !== pass) {
+        return { ok: false, error: 'Password (nomor HP) tidak cocok dengan akun ini. Coba cek lagi ya.' };
+      }
+      this.setActiveEmail(email);
+      this.applyAccountToAppState(existing);
+      return { ok: true, isNew: false, needsOnboarding: !existing.isOnboarded, account: existing };
+    }
+
+    // Akun baru -> otomatis dibuat
+    const isFirstAccount = Object.keys(accounts).length === 0;
+    const legacy = isFirstAccount ? this.readLegacyStateOnce() : null;
+    const initialState = legacy ? legacy : createFreshState(deriveNameFromEmail(email));
+    if (!legacy || !legacy.username || legacy.username === 'Sahabat Quran') {
+      initialState.username = deriveNameFromEmail(email);
+    }
+
+    const newAcc = {
+      email,
+      password: pass,
+      createdAt: new Date().toISOString(),
+      isOnboarded: false,
+      state: initialState
+    };
+
+    accounts[email] = newAcc;
+    this.saveAll(accounts);
+    this.setActiveEmail(email);
+    this.applyAccountToAppState(newAcc);
+    return { ok: true, isNew: true, needsOnboarding: true, account: newAcc };
+  },
+
+  completeOnboarding(username, botColor, botHat) {
+    AppState.username = (username || '').trim() || 'Sahabat Quran';
+    AppState.botColor = botColor || '#A855F7';
+    AppState.botHat = botHat || 'peci_putih';
+
+    if (this.activeEmail) {
+      const accounts = this.loadAll();
+      if (accounts[this.activeEmail]) {
+        accounts[this.activeEmail].isOnboarded = true;
+        accounts[this.activeEmail].state = { ...AppState };
+        this.saveAll(accounts);
+      }
+    }
+    saveState();
+  },
+
+  syncCurrentState() {
+    if (!this.activeEmail) return;
+    const accounts = this.loadAll();
+    if (accounts[this.activeEmail]) {
+      accounts[this.activeEmail].state = {
+        ...AppState,
+        progress: { ...(AppState.progress || {}) },
+        unlockedGifts: Array.isArray(AppState.unlockedGifts) ? [...AppState.unlockedGifts] : []
+      };
+      this.saveAll(accounts);
+    }
+  },
+
+  logout() {
+    this.syncCurrentState();
+    this.setActiveEmail(null);
+  }
+};
+
+const AppState = createFreshState();
+
 function saveState() {
+  AccountStore.syncCurrentState();
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(AppState));
+    localStorage.setItem(LEGACY_STATE_KEY, JSON.stringify(AppState));
   } catch (e) {
     console.warn('Gagal menyimpan progres:', e);
   }
@@ -1336,11 +1497,16 @@ const BotAvatar = {
     `;
   },
 
-  renderPickers(draftColor, draftHat, onSelect) {
-    const preview = document.getElementById('profile-bot-preview');
+  renderPickers(draftColor, draftHat, onSelect, ids = null) {
+    const cfg = ids || {
+      preview: 'profile-bot-preview',
+      colors: 'bot-color-picker',
+      hats: 'bot-hat-picker'
+    };
+    const preview = document.getElementById(cfg.preview);
     if (preview) preview.innerHTML = this.renderSVG(draftColor, draftHat);
 
-    const colorWrap = document.getElementById('bot-color-picker');
+    const colorWrap = document.getElementById(cfg.colors);
     if (colorWrap) {
       colorWrap.innerHTML = '';
       BOT_COLORS.forEach(c => {
@@ -1357,7 +1523,7 @@ const BotAvatar = {
       });
     }
 
-    const hatWrap = document.getElementById('bot-hat-picker');
+    const hatWrap = document.getElementById(cfg.hats);
     if (hatWrap) {
       hatWrap.innerHTML = '';
       BOT_HATS.forEach(h => {
@@ -1537,6 +1703,8 @@ function updateSoundIcons() {
   const icon = AppState.soundOn ? '🔊' : '🔇';
   $('btn-toggle-sound').textContent = icon;
   $('btn-game-sound').textContent = icon;
+  const obSound = $('btn-onboard-sound');
+  if (obSound) obSound.textContent = icon;
 }
 
 function updateMurottalBadge() {
@@ -1577,6 +1745,8 @@ function updatePageAudioButton() {
 function updateHeaderUI() {
   $('header-avatar').innerHTML = BotAvatar.renderSVG(AppState.botColor, AppState.botHat);
   $('header-username').textContent = AppState.username;
+  const emailBadge = $('profile-account-email');
+  if (emailBadge) emailBadge.textContent = `📧 ${AccountStore.activeEmail || 'Akun Lokal'}`;
   $('header-stars').textContent = getTotalStars();
   $('header-gifts-count').textContent = AppState.unlockedGifts.length;
   updateSoundIcons();
@@ -2316,6 +2486,97 @@ async function runDownloadJuzAudio(juzNumber, uiTargets) {
   }
 }
 
+
+/* =========================================================================
+   10B. KONTROL LAYAR LOGIN, ONBOARDING BOT, & KELUAR AKUN
+   ========================================================================= */
+function showLoginError(msg) {
+  const el = $('login-error');
+  if (!el) return;
+  if (!msg) {
+    el.classList.add('hidden');
+    el.textContent = '';
+  } else {
+    el.textContent = msg;
+    el.classList.remove('hidden');
+  }
+}
+
+function renderSavedAccountChips() {
+  const box = $('saved-accounts-box');
+  const list = $('saved-accounts-list');
+  if (!box || !list) return;
+
+  const accounts = AccountStore.loadAll();
+  const keys = Object.keys(accounts);
+  if (keys.length === 0) {
+    box.classList.add('hidden');
+    return;
+  }
+
+  list.innerHTML = '';
+  keys.slice(0, 5).forEach(email => {
+    const acc = accounts[email];
+    const st = acc.state || DEFAULT_STATE;
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'saved-acc-chip';
+    chip.innerHTML = `${BotAvatar.renderSVG(st.botColor, st.botHat)}<span>${st.username || email}</span>`;
+    chip.title = `Isi otomatis akun ${email}`;
+    chip.addEventListener('click', () => {
+      SoundFX.tap();
+      $('login-email').value = email;
+      $('login-password').value = '';
+      $('login-password').focus();
+      showLoginError('');
+    });
+    list.appendChild(chip);
+  });
+
+  box.classList.remove('hidden');
+}
+
+function openLoginScreen() {
+  MurottalPlayer.stop();
+  document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.add('hidden'));
+  showLoginError('');
+  renderSavedAccountChips();
+  showScreen('screen-login');
+}
+
+function openOnboardingScreen() {
+  draftBotColor = AppState.botColor || '#A855F7';
+  draftBotHat = AppState.botHat || 'peci_putih';
+  const nameInput = $('onboard-username');
+  if (nameInput) nameInput.value = AppState.username || '';
+  const obStars = $('onboard-stars');
+  if (obStars) obStars.textContent = getTotalStars();
+  updateSoundIcons();
+
+  const refreshOnboard = (c, h) => {
+    draftBotColor = c;
+    draftBotHat = h;
+    BotAvatar.renderPickers(draftBotColor, draftBotHat, refreshOnboard, {
+      preview: 'onboard-bot-preview',
+      colors: 'onboard-color-picker',
+      hats: 'onboard-hat-picker'
+    });
+  };
+  refreshOnboard(draftBotColor, draftBotHat);
+  showScreen('screen-onboarding');
+}
+
+function performLogout() {
+  if (!confirm('Keluar dari akun ini? Tenang, semua bintang dan progresmu tetap tersimpan aman di perangkat ini.')) {
+    return;
+  }
+  SoundFX.tap();
+  AccountStore.logout();
+  $('login-password').value = '';
+  openLoginScreen();
+  showToast('Berhasil keluar akun. Sampai jumpa lagi! 👋', 2800);
+}
+
 function bindEvents() {
   document.querySelectorAll('[data-mode]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2347,6 +2608,95 @@ function bindEvents() {
   };
   $('btn-toggle-sound').addEventListener('click', toggleSoundHandler);
   $('btn-game-sound').addEventListener('click', toggleSoundHandler);
+  const btnOnboardSound = $('btn-onboard-sound');
+  if (btnOnboardSound) btnOnboardSound.addEventListener('click', toggleSoundHandler);
+
+  // Form Login ("Masuk dulu yuk")
+  const loginForm = $('login-form');
+  if (loginForm) {
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      SoundFX.tap();
+      showLoginError('');
+      const emailVal = $('login-email').value;
+      const passVal = $('login-password').value;
+      const res = AccountStore.loginOrCreate(emailVal, passVal);
+      if (!res.ok) {
+        SoundFX.wrong();
+        showLoginError(res.error);
+        return;
+      }
+      SoundFX.correct();
+      checkNewGiftUnlocks();
+      updateHeaderUI();
+      renderJuzGrid();
+      if (res.needsOnboarding) {
+        openOnboardingScreen();
+        showToast('Akun siap! Pilih nama & kostum botmu dulu ya 🤖', 2800);
+      } else {
+        showScreen('screen-home');
+        showToast(`Selamat datang kembali, ${AppState.username}! ✨`, 2600);
+      }
+    });
+  }
+
+  // Toggle lihat/sembunyikan password nomor HP
+  const eyeBtn = $('btn-toggle-login-eye');
+  if (eyeBtn) {
+    eyeBtn.addEventListener('click', () => {
+      const inp = $('login-password');
+      if (!inp) return;
+      const isPass = inp.type === 'password';
+      inp.type = isPass ? 'text' : 'password';
+      eyeBtn.textContent = isPass ? '🙈' : '👁️';
+    });
+  }
+
+  // Tombol Masuk Cepat Tamu Demo (khusus demo.php)
+  const demoGuestBtn = $('btn-demo-guest');
+  if (demoGuestBtn) {
+    demoGuestBtn.addEventListener('click', () => {
+      SoundFX.tap();
+      const res = AccountStore.loginOrCreate('tamu@demo.alqurango', '0800000000');
+      if (res.ok) {
+        AccountStore.completeOnboarding('Tamu Demo', AppState.botColor || '#22D3EE', AppState.botHat || 'peci_putih');
+        checkNewGiftUnlocks();
+        updateHeaderUI();
+        renderJuzGrid();
+        showScreen('screen-home');
+        showToast('Masuk sebagai Tamu Demo! Selamat mencoba ✨', 2600);
+      }
+    });
+  }
+
+  // Tombol Selesai Onboarding ("Pilih Juz ›") & Kembali
+  const btnOnboardStart = $('btn-onboard-start');
+  if (btnOnboardStart) {
+    btnOnboardStart.addEventListener('click', () => {
+      SoundFX.correct();
+      const chosenName = $('onboard-username').value.trim() || AppState.username || 'Sahabat Quran';
+      AccountStore.completeOnboarding(chosenName, draftBotColor, draftBotHat);
+      checkNewGiftUnlocks();
+      updateHeaderUI();
+      renderJuzGrid();
+      showScreen('screen-home');
+      showToast(`Halo ${AppState.username}! Yuk pilih Juz untuk mulai main ⭐`, 2800);
+    });
+  }
+  const btnOnboardBack = $('btn-onboard-back');
+  if (btnOnboardBack) {
+    btnOnboardBack.addEventListener('click', () => {
+      SoundFX.tap();
+      AccountStore.logout();
+      openLoginScreen();
+    });
+  }
+
+  // Tombol Keluar Akun (di bawah Beranda & di dalam Modal Profil)
+  const btnHomeLogout = $('btn-home-logout');
+  if (btnHomeLogout) btnHomeLogout.addEventListener('click', performLogout);
+  const btnProfileLogout = $('btn-profile-logout');
+  if (btnProfileLogout) btnProfileLogout.addEventListener('click', performLogout);
 
   $('btn-toggle-murottal').addEventListener('click', () => {
     SoundFX.tap();
@@ -2684,7 +3034,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   populateAudioJuzSelect();
   bindEvents();
   await Promise.all([QuranLoader.init(), AudioDB.init(), MurottalPlayer.checkProxy()]);
-  checkNewGiftUnlocks();
-  updateHeaderUI();
-  renderJuzGrid();
+
+  const activeEmail = AccountStore.getActiveEmail();
+  if (activeEmail) {
+    const accounts = AccountStore.loadAll();
+    const acc = accounts[activeEmail];
+    AccountStore.setActiveEmail(activeEmail);
+    AccountStore.applyAccountToAppState(acc);
+    checkNewGiftUnlocks();
+    updateHeaderUI();
+    renderJuzGrid();
+    if (!acc.isOnboarded) {
+      openOnboardingScreen();
+    } else {
+      showScreen('screen-home');
+    }
+  } else {
+    updateSoundIcons();
+    openLoginScreen();
+  }
 });
